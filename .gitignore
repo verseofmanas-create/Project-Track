@@ -3,7 +3,7 @@
 project_track.db
 __pycache__
 node_modules/
-dist/
+frontend/dist/
 waitress.log
 *.pyc
 .DS_Store
