@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   Plus, 
   Search, 
@@ -61,6 +61,43 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
   // Delete Confirmation State
   const [deleteConfirm, setDeleteConfirm] = useState(null) // project object or null
   const [deleting, setDeleting] = useState(false)
+
+  // Project Details Modal State
+  const [selectedProjectForModal, setSelectedProjectForModal] = useState(null)
+  const [detailedProject, setDetailedProject] = useState(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
+
+  useEffect(() => {
+    if (!selectedProjectForModal) {
+      setDetailedProject(null)
+      return
+    }
+
+    const fetchDetailedProject = async () => {
+      setLoadingDetails(true)
+      try {
+        const token = localStorage.getItem('projecttrack_token')
+        const headers = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+        const res = await fetch(`/api/projects/${selectedProjectForModal.id}?role=${encodeURIComponent(role)}`, { headers })
+        if (res.ok) {
+          const data = await res.json()
+          setDetailedProject(data)
+        } else {
+          setDetailedProject({ ...selectedProjectForModal, milestones: [], notes: [], payments: [], expenses: [] })
+        }
+      } catch (err) {
+        console.error("Error fetching detailed project:", err)
+        setDetailedProject({ ...selectedProjectForModal, milestones: [], notes: [], payments: [], expenses: [] })
+      } finally {
+        setLoadingDetails(false)
+      }
+    }
+
+    fetchDetailedProject()
+  }, [selectedProjectForModal, role])
 
   // Unique clients list for dropdown
   const clients = ['All', ...new Set(projects.map(p => p.client))]
@@ -392,7 +429,7 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
                 {/* Header: Title, Health and Alert status */}
                 <div className="flex justify-between items-start gap-3">
                   <div className="space-y-1 min-w-0">
-                    <h4 className="text-base font-bold text-white font-display truncate hover:text-amber-500 transition-colors cursor-pointer" onClick={() => onViewDetails(proj.id)}>
+                    <h4 className="text-base font-bold text-white font-display truncate hover:text-amber-500 transition-colors cursor-pointer" onClick={() => setSelectedProjectForModal(proj)}>
                       {proj.name}
                     </h4>
                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -464,7 +501,7 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
                 {/* Action buttons */}
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => onViewDetails(proj.id)}
+                    onClick={() => setSelectedProjectForModal(proj)}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-slate-800 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
                   >
                     View Details
@@ -774,6 +811,233 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Project Details Modal ── */}
+      {selectedProjectForModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Overlay */}
+          <div 
+            onClick={() => setSelectedProjectForModal(null)}
+            className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm"
+          />
+          
+          {/* Modal Content */}
+          <div className="relative bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl animate-slide-up flex flex-col max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-800 flex justify-between items-center bg-slate-955/20">
+              <div>
+                <h3 className="text-lg font-bold text-white font-display uppercase tracking-wider">
+                  {selectedProjectForModal.name}
+                </h3>
+                <p className="text-xs text-slate-400 font-medium mt-1">
+                  Client: <span className="text-slate-300 font-semibold">{selectedProjectForModal.client}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedProjectForModal(null)}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              
+              {/* Top Overview Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                
+                {/* Left: General Stats & Progress */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-amber-500 uppercase tracking-widest">General Overview</h4>
+                  
+                  <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-850 space-y-4">
+                    {/* Completion bar */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-400 font-semibold">Project Completion</span>
+                        <span className="text-orange-500 font-extrabold font-mono text-base">{selectedProjectForModal.completion_percentage}%</span>
+                      </div>
+                      <div className="w-full bg-slate-850 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="gradient-accent h-full rounded-full transition-all duration-550"
+                          style={{ width: `${selectedProjectForModal.completion_percentage}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Health Status & Client */}
+                    <div className="flex justify-between items-center text-xs border-t border-slate-900 pt-3">
+                      <div>
+                        <span className="text-slate-500 font-medium block">Health Status</span>
+                        <span className={`inline-block px-2.5 py-0.5 mt-1 text-[10px] font-bold uppercase rounded-full tracking-wider ${getHealthBadgeStyle(selectedProjectForModal.health_status)}`}>
+                          {selectedProjectForModal.health_status}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-slate-500 font-medium block">Project ID</span>
+                        <span className="text-slate-300 font-bold font-mono mt-1 block">#{selectedProjectForModal.id}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dates */}
+                  <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-850 grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-slate-500 text-[10px] font-semibold uppercase tracking-wider block">Start Date</span>
+                      <span className="text-sm font-semibold text-slate-200 mt-1 block">
+                        {new Date(selectedProjectForModal.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[10px] font-semibold uppercase tracking-wider block">Target Completion</span>
+                      <span className="text-sm font-semibold text-slate-200 mt-1 block">
+                        {new Date(selectedProjectForModal.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Role-based Financials */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-amber-500 uppercase tracking-widest">
+                    {role === 'Admin' || role === 'Client' ? 'Financial Position' : 'Site Details'}
+                  </h4>
+
+                  {role === 'Admin' && (
+                    <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-850 space-y-3 text-xs">
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-slate-450 font-medium">Contract Value</span>
+                        <span className="text-white font-bold font-mono">{formatINR(selectedProjectForModal.contract_value)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-t border-slate-900/60">
+                        <span className="text-slate-450 font-medium">Amount Received</span>
+                        <span className="text-emerald-400 font-bold font-mono">{formatINR(selectedProjectForModal.amount_received)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-t border-slate-900/60">
+                        <span className="text-slate-450 font-medium">Outstanding Dues</span>
+                        <span className={`font-bold font-mono ${selectedProjectForModal.contract_value - selectedProjectForModal.amount_received > 0.3 * selectedProjectForModal.contract_value ? 'text-rose-405' : 'text-slate-300'}`}>
+                          {formatINR(selectedProjectForModal.contract_value - selectedProjectForModal.amount_received)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-t border-slate-900/60">
+                        <span className="text-slate-450 font-medium">Total Expenses Logged</span>
+                        <span className="text-rose-400 font-bold font-mono">{formatINR(selectedProjectForModal.total_expenses)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {role === 'Client' && (
+                    <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-850 space-y-3 text-xs">
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-slate-450 font-medium">Total Contract Value</span>
+                        <span className="text-white font-bold font-mono">{formatINR(selectedProjectForModal.contract_value)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-t border-slate-900/60">
+                        <span className="text-slate-450 font-medium">Total Paid to Date</span>
+                        <span className="text-emerald-400 font-bold font-mono">{formatINR(selectedProjectForModal.amount_received)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-t border-slate-900/60">
+                        <span className="text-slate-450 font-medium">Outstanding Balance</span>
+                        <span className="text-slate-300 font-bold font-mono">{formatINR(selectedProjectForModal.contract_value - selectedProjectForModal.amount_received)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {role === 'Site Manager' && (
+                    <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-850 space-y-3 text-xs text-slate-400 leading-relaxed">
+                      <p>
+                        As a **Site Manager**, your role is centered on operational progress, timeline integrity, and risk mitigations.
+                      </p>
+                      <p>
+                        Financial details (such as project contract value, client invoicing, and cash-flow ledgers) are restricted to corporate Admin and Client roles.
+                      </p>
+                      <p className="italic text-slate-500">
+                        * Refer to the Project Workspace to track active task checklists, edit project status, or report site issues.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Milestones / Checklist Section */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center justify-between">
+                  <span>Project Milestones Checklist</span>
+                  {detailedProject && (
+                    <span className="text-[10px] bg-slate-950 px-2 py-0.5 text-slate-450 rounded-full font-bold">
+                      {detailedProject.milestones?.filter(m => m.completed === 1).length || 0}/{detailedProject.milestones?.length || 0} Completed
+                    </span>
+                  )}
+                </h4>
+
+                {loadingDetails ? (
+                  <div className="bg-slate-950/20 border border-slate-850 rounded-xl p-6 text-center animate-pulse space-y-2">
+                    <div className="h-4 bg-slate-800 rounded w-2/3 mx-auto" />
+                    <div className="h-3 bg-slate-850 rounded w-1/2 mx-auto" />
+                  </div>
+                ) : detailedProject && detailedProject.milestones?.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-1">
+                    {detailedProject.milestones.map((m) => (
+                      <div 
+                        key={m.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border text-xs ${
+                          m.completed === 1
+                            ? 'bg-emerald-950/10 border-emerald-900/30 text-slate-500'
+                            : 'bg-slate-950/30 border-slate-850 text-slate-300'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded flex items-center justify-center font-bold text-[10px] flex-shrink-0 ${
+                          m.completed === 1 ? 'bg-emerald-500 text-slate-950' : 'border border-slate-700'
+                        }`}>
+                          {m.completed === 1 && '✓'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`font-semibold truncate ${m.completed === 1 ? 'line-through' : ''}`}>{m.name}</p>
+                          <span className="text-[10px] text-slate-500 block mt-0.5">
+                            Due: {new Date(m.due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-slate-950/20 border border-slate-850 rounded-xl p-6 text-center text-xs text-slate-500">
+                    No milestones populated for this project.
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-850 bg-slate-950/30 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedProjectForModal(null)}
+                className="px-4 py-2 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-bold uppercase transition-colors"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const projectId = selectedProjectForModal.id;
+                  setSelectedProjectForModal(null);
+                  onViewDetails(projectId);
+                }}
+                className="px-5 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shadow-lg shadow-orange-600/10 flex items-center gap-1.5"
+              >
+                Go to Workspace
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
           </div>
         </div>
       )}

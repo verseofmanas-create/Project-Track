@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { AlertOctagon, Plus, Search, Filter, Trash2, Calendar, User, Eye, X, CheckCircle, Clock, Play, HelpCircle } from 'lucide-react'
+import { AlertOctagon, Plus, Search, Filter, Trash2, Calendar, User, Eye, X, CheckCircle, Clock, Play, HelpCircle, AlertTriangle } from 'lucide-react'
 
-export default function IssuesView({ role, projects }) {
+export default function IssuesView({ role, projects, currentUser }) {
   const [issues, setIssues] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -17,12 +17,16 @@ export default function IssuesView({ role, projects }) {
   const [isViewOpen, setIsViewOpen] = useState(false)
   const [selectedIssue, setSelectedIssue] = useState(null)
 
+  // Delete Confirmation State
+  const [deleteConfirm, setDeleteConfirm] = useState(null) // issue object or null
+  const [deleting, setDeleting] = useState(false)
+
   // Form State
   const [formProject, setFormProject] = useState('')
   const [formTitle, setFormTitle] = useState('')
   const [formDescription, setFormDescription] = useState('')
   const [formSeverity, setFormSeverity] = useState('Medium')
-  const [formReportedBy, setFormReportedBy] = useState('')
+  const [formReportedBy, setFormReportedBy] = useState(currentUser ? currentUser.full_name : '')
   const [formAssignedTo, setFormAssignedTo] = useState('')
   const [formDateReported, setFormDateReported] = useState(new Date().toISOString().split('T')[0])
   const [formLoading, setFormLoading] = useState(false)
@@ -47,6 +51,12 @@ export default function IssuesView({ role, projects }) {
       setFormProject(projects[0].id)
     }
   }, [projects])
+
+  useEffect(() => {
+    if (isCreateOpen && currentUser) {
+      setFormReportedBy(currentUser.full_name)
+    }
+  }, [isCreateOpen, currentUser])
 
   const handleCreateIssue = async (e) => {
     e.preventDefault()
@@ -74,7 +84,7 @@ export default function IssuesView({ role, projects }) {
       // Reset
       setFormTitle('')
       setFormDescription('')
-      setFormReportedBy('')
+      setFormReportedBy(currentUser ? currentUser.full_name : '')
       setFormAssignedTo('')
       setFormSeverity('Medium')
       setIsCreateOpen(false)
@@ -110,16 +120,20 @@ export default function IssuesView({ role, projects }) {
     }
   }
 
-  const handleDeleteIssue = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this issue?')) return
+  const handleDeleteIssue = async () => {
+    if (!deleteConfirm) return
 
+    setDeleting(true)
     try {
-      const res = await fetch(`/api/issues/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/issues/${deleteConfirm.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete issue')
       
+      setDeleteConfirm(null)
       await fetchIssues()
     } catch (err) {
       alert(err.message)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -311,7 +325,7 @@ export default function IssuesView({ role, projects }) {
                   <th className="py-4 px-6">Deviation / Issue</th>
                   <th className="py-4 px-6">Project</th>
                   <th className="py-4 px-6">Severity</th>
-                  <th className="py-4 px-6 text-center">Status Status</th>
+                  <th className="py-4 px-6 text-center">Status</th>
                   <th className="py-4 px-6">Assigned Agent</th>
                   <th className="py-4 px-6 font-mono">Date Reported</th>
                   <th className="py-4 px-6 text-right">Actions</th>
@@ -368,7 +382,7 @@ export default function IssuesView({ role, projects }) {
                         </button>
                         {role === 'Admin' && (
                           <button
-                            onClick={() => handleDeleteIssue(i.id)}
+                            onClick={() => setDeleteConfirm(i)}
                             className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition-colors"
                             title="Delete Issue Record"
                           >
@@ -576,6 +590,49 @@ export default function IssuesView({ role, projects }) {
               >
                 Close Logs
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirmation Dialog ── */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            onClick={() => setDeleteConfirm(null)}
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+          />
+          <div className="relative bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full overflow-hidden shadow-2xl animate-slide-up">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-rose-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Delete Issue Record</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">This action cannot be undone.</p>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-950/60 border border-slate-800/60 rounded-lg">
+                <p className="text-sm text-slate-300 font-semibold">{deleteConfirm.title}</p>
+                <p className="text-xs text-slate-500 mt-1">Project Affected: {deleteConfirm.project_name}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Assigned Agent: {deleteConfirm.assigned_to} | Severity: {deleteConfirm.severity}</p>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-4 py-2 border border-slate-800 text-slate-400 hover:text-white rounded-lg text-xs font-bold uppercase transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteIssue}
+                  disabled={deleting}
+                  className="px-6 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-colors shadow-lg shadow-rose-600/10"
+                >
+                  {deleting ? 'Deleting...' : 'Delete Issue'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

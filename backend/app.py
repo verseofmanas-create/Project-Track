@@ -16,7 +16,7 @@ from api.routes.reports import reports_bp
 from api.routes.issues import issues_bp
 from api.routes.users import users_bp
 
-app = Flask(__name__, static_folder='../frontend/dist', static_url_path='')
+app = Flask(__name__, static_folder='dist', static_url_path='')
 CORS(app)  # Enable CORS for development mode
 
 # Register Blueprints for modular routing

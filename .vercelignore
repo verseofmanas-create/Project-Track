@@ -1,0 +1,10 @@
+.vercel
+.env
+project_track.db
+__pycache__
+node_modules
+frontend/node_modules
+waitress.log
+*.pyc
+.DS_Store
+Thumbs.db

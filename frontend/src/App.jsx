@@ -575,6 +575,7 @@ export default function App() {
                 <IssuesView 
                   role={role}
                   projects={projects}
+                  currentUser={currentUser}
                 />
               )}
               {activeView === 'users' && role === 'Admin' && (
