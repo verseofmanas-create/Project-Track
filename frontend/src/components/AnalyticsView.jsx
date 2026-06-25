@@ -171,7 +171,7 @@ export default function AnalyticsView({ onRefresh }) {
     doc.text(formatINR(totalContract), 25, 52)
     doc.text(formatINR(totalCollected), 80, 52)
     doc.text(formatINR(totalExpenses), 135, 52)
-    doc.setTextColor(totalProfit >= 0 ? [6, 95, 70] : [153, 27, 27]) // Green or red
+    doc.setTextColor(...(totalProfit >= 0 ? [6, 95, 70] : [153, 27, 27])) // Green or red
     doc.text(formatINR(totalProfit), 190, 52)
     doc.text(`${averageMargin.toFixed(1)}%`, 245, 52)
 
@@ -242,7 +242,7 @@ export default function AnalyticsView({ onRefresh }) {
       doc.text(formatINR(p.contract_value), 115, y)
       doc.text(formatINR(p.amount_received), 160, y)
       doc.text(formatINR(p.total_expenses), 205, y)
-      doc.setTextColor(p.net_profit >= 0 ? [6, 95, 70] : [153, 27, 27])
+      doc.setTextColor(...(p.net_profit >= 0 ? [6, 95, 70] : [153, 27, 27]))
       doc.text(formatINR(p.net_profit), 245, y)
 
       doc.setDrawColor(241, 245, 249)
