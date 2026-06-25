@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { jsPDF } from 'jspdf'
 import { 
   TrendingUp, 
   Download, 
@@ -75,13 +76,13 @@ export default function AnalyticsView({ onRefresh }) {
     fetchAnalyticsData()
   }, [])
 
-  // Trigger Mock PDF generation
+  // Trigger PDF generation
   const handleExportPDF = () => {
     setCompilingPDF(true)
     setPdfProgress(0)
     setPdfSuccess(false)
     
-    // Simulate compilation steps
+    // Simulate compilation steps for visual effect
     const interval = setInterval(() => {
       setPdfProgress(prev => {
         if (prev >= 100) {
@@ -89,6 +90,9 @@ export default function AnalyticsView({ onRefresh }) {
           setCompilingPDF(false)
           setPdfSuccess(true)
           
+          // Trigger the actual PDF download
+          generateFinancialPDF()
+
           // Reset success checkmark after 3 seconds
           setTimeout(() => setPdfSuccess(false), 3000)
           return 100
@@ -96,6 +100,173 @@ export default function AnalyticsView({ onRefresh }) {
         return prev + 20
       })
     }, 300)
+  }
+
+  const generateFinancialPDF = () => {
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    })
+
+    const primaryColor = [15, 23, 42]   // slate-900
+    const accentColor = [234, 88, 12]   // orange-600
+    const mutedColor = [100, 116, 139]  // slate-500
+    const lightBg = [248, 250, 252]    // slate-50
+
+    // Title banner
+    doc.setFillColor(...accentColor)
+    doc.rect(0, 0, 297, 8, 'F')
+
+    // Header
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(18)
+    doc.setTextColor(...primaryColor)
+    doc.text('DHATRI CONSTRUCTIONS', 20, 22)
+
+    doc.setFont('Helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...mutedColor)
+    doc.text('ENTERPRISE FINANCIAL PERFORMANCE & P&L LEDGER', 20, 27)
+
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(...accentColor)
+    doc.text('AUDITED STATEMENT', 220, 22)
+
+    doc.setFont('Helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...mutedColor)
+    doc.text(`DATE OF EXPORT: ${new Date().toLocaleDateString()}`, 220, 27)
+
+    // Divider line
+    doc.setDrawColor(226, 232, 240)
+    doc.setLineWidth(0.5)
+    doc.line(20, 31, 277, 31)
+
+    // ── SUMMARY PANEL ──
+    const totalContract = pnlData.reduce((sum, p) => sum + p.contract_value, 0)
+    const totalCollected = pnlData.reduce((sum, p) => sum + p.amount_received, 0)
+    const totalExpenses = pnlData.reduce((sum, p) => sum + p.total_expenses, 0)
+    const totalProfit = pnlData.reduce((sum, p) => sum + p.net_profit, 0)
+    const averageMargin = pnlData.length > 0 ? (totalProfit / totalContract) * 100 : 0
+
+    doc.setFillColor(...lightBg)
+    doc.rect(20, 37, 257, 24, 'F')
+    doc.setDrawColor(226, 232, 240)
+    doc.rect(20, 37, 257, 24, 'S')
+
+    // Summary text
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(...mutedColor)
+    doc.text('TOTAL VALUATION', 25, 43)
+    doc.text('TOTAL REVENUE', 80, 43)
+    doc.text('TOTAL OUTLAYS', 135, 43)
+    doc.text('NET OPERATING PROFIT', 190, 43)
+    doc.text('NET MARGIN', 245, 43)
+
+    doc.setFontSize(12)
+    doc.setTextColor(...primaryColor)
+    doc.text(formatINR(totalContract), 25, 52)
+    doc.text(formatINR(totalCollected), 80, 52)
+    doc.text(formatINR(totalExpenses), 135, 52)
+    doc.setTextColor(totalProfit >= 0 ? [6, 95, 70] : [153, 27, 27]) // Green or red
+    doc.text(formatINR(totalProfit), 190, 52)
+    doc.text(`${averageMargin.toFixed(1)}%`, 245, 52)
+
+    // ── FINANCIAL LEDGER TABLE ──
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(...primaryColor)
+    doc.text('PROJECT STATEMENT BREAKDOWN', 20, 72)
+    doc.setDrawColor(...accentColor)
+    doc.setLineWidth(0.8)
+    doc.line(20, 74, 50, 74)
+
+    // Table Header
+    doc.setFillColor(241, 245, 249)
+    doc.rect(20, 80, 257, 8, 'F')
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...primaryColor)
+    doc.text('PROJECT NAME', 23, 85.5)
+    doc.text('CLIENT', 70, 85.5)
+    doc.text('CONTRACT VALUE', 115, 85.5)
+    doc.text('AMOUNT RECEIVED', 160, 85.5)
+    doc.text('TOTAL EXPENSES', 205, 85.5)
+    doc.text('NET PROFIT/LOSS', 245, 85.5)
+
+    // Table rows
+    doc.setFont('Helvetica', 'normal')
+    doc.setFontSize(8.5)
+    let y = 94
+    const pageHeightLimit = 185
+
+    pnlData.forEach((p, index) => {
+      if (y > pageHeightLimit) {
+        doc.addPage()
+        doc.setFillColor(...accentColor)
+        doc.rect(0, 0, 297, 8, 'F')
+        
+        doc.setFont('Helvetica', 'bold')
+        doc.setFontSize(10)
+        doc.setTextColor(...primaryColor)
+        doc.text('DHATRI CONSTRUCTIONS - FINANCIAL LEDGER AUDIT (CONT.)', 20, 20)
+        
+        doc.setDrawColor(226, 232, 240)
+        doc.line(20, 24, 277, 24)
+        
+        doc.setFillColor(241, 245, 249)
+        doc.rect(20, 28, 257, 8, 'F')
+        doc.text('PROJECT NAME', 23, 33.5)
+        doc.text('CLIENT', 70, 33.5)
+        doc.text('CONTRACT VALUE', 115, 33.5)
+        doc.text('AMOUNT RECEIVED', 160, 33.5)
+        doc.text('TOTAL EXPENSES', 205, 33.5)
+        doc.text('NET PROFIT/LOSS', 245, 33.5)
+        
+        doc.setFont('Helvetica', 'normal')
+        doc.setFontSize(8.5)
+        y = 42
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252)
+        doc.rect(20, y - 5, 257, 7, 'F')
+      }
+
+      doc.setTextColor(...primaryColor)
+      doc.text(p.name, 23, y)
+      doc.text(p.client, 70, y)
+      doc.text(formatINR(p.contract_value), 115, y)
+      doc.text(formatINR(p.amount_received), 160, y)
+      doc.text(formatINR(p.total_expenses), 205, y)
+      doc.setTextColor(p.net_profit >= 0 ? [6, 95, 70] : [153, 27, 27])
+      doc.text(formatINR(p.net_profit), 245, y)
+
+      doc.setDrawColor(241, 245, 249)
+      doc.setLineWidth(0.3)
+      doc.line(20, y + 2, 277, y + 2)
+
+      y += 7.5
+    })
+
+    const totalPages = doc.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      doc.setDrawColor(226, 232, 240)
+      doc.setLineWidth(0.5)
+      doc.line(20, 192, 277, 192)
+
+      doc.setFont('Helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...mutedColor)
+      doc.text('Dhatri Constructions - Enterprise Resource Ledger Statement (Confidential)', 20, 197)
+      doc.text(`Page ${i} of ${totalPages}`, 260, 197)
+    }
+
+    doc.save(`dhatri_financials_${new Date().toISOString().split('T')[0]}.pdf`)
   }
 
   // Trigger Mock CSV export
