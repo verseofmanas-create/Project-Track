@@ -114,29 +114,34 @@ export default function AnalyticsView({ onRefresh }) {
     const mutedColor = [100, 116, 139]  // slate-500
     const lightBg = [248, 250, 252]    // slate-50
 
+    // Color helpers to avoid spread operator argument mapping issues in transpiled ESM code
+    const setFill = (pdf, color) => pdf.setFillColor(color[0], color[1], color[2])
+    const setText = (pdf, color) => pdf.setTextColor(color[0], color[1], color[2])
+    const setDraw = (pdf, color) => pdf.setDrawColor(color[0], color[1], color[2])
+
     // Title banner
-    doc.setFillColor(...accentColor)
+    setFill(doc, accentColor)
     doc.rect(0, 0, 297, 8, 'F')
 
     // Header
     doc.setFont('Helvetica', 'bold')
     doc.setFontSize(18)
-    doc.setTextColor(...primaryColor)
+    setText(doc, primaryColor)
     doc.text('DHATRI CONSTRUCTIONS', 20, 22)
 
     doc.setFont('Helvetica', 'normal')
     doc.setFontSize(9)
-    doc.setTextColor(...mutedColor)
+    setText(doc, mutedColor)
     doc.text('ENTERPRISE FINANCIAL PERFORMANCE & P&L LEDGER', 20, 27)
 
     doc.setFont('Helvetica', 'bold')
     doc.setFontSize(11)
-    doc.setTextColor(...accentColor)
+    setText(doc, accentColor)
     doc.text('AUDITED STATEMENT', 220, 22)
 
     doc.setFont('Helvetica', 'normal')
     doc.setFontSize(9)
-    doc.setTextColor(...mutedColor)
+    setText(doc, mutedColor)
     doc.text(`DATE OF EXPORT: ${new Date().toLocaleDateString()}`, 220, 27)
 
     // Divider line
@@ -145,13 +150,13 @@ export default function AnalyticsView({ onRefresh }) {
     doc.line(20, 31, 277, 31)
 
     // ── SUMMARY PANEL ──
-    const totalContract = pnlData.reduce((sum, p) => sum + p.contract_value, 0)
-    const totalCollected = pnlData.reduce((sum, p) => sum + p.amount_received, 0)
-    const totalExpenses = pnlData.reduce((sum, p) => sum + p.total_expenses, 0)
-    const totalProfit = pnlData.reduce((sum, p) => sum + p.net_profit, 0)
-    const averageMargin = pnlData.length > 0 ? (totalProfit / totalContract) * 100 : 0
+    const totalContract = pnlData.reduce((sum, p) => sum + Number(p.contract_value || 0), 0)
+    const totalCollected = pnlData.reduce((sum, p) => sum + Number(p.amount_received || 0), 0)
+    const totalExpenses = pnlData.reduce((sum, p) => sum + Number(p.total_expenses || 0), 0)
+    const totalProfit = pnlData.reduce((sum, p) => sum + Number(p.net_profit || 0), 0)
+    const averageMargin = totalContract > 0 ? (totalProfit / totalContract) * 100 : 0
 
-    doc.setFillColor(...lightBg)
+    setFill(doc, lightBg)
     doc.rect(20, 37, 257, 24, 'F')
     doc.setDrawColor(226, 232, 240)
     doc.rect(20, 37, 257, 24, 'S')
@@ -159,7 +164,7 @@ export default function AnalyticsView({ onRefresh }) {
     // Summary text
     doc.setFont('Helvetica', 'bold')
     doc.setFontSize(8)
-    doc.setTextColor(...mutedColor)
+    setText(doc, mutedColor)
     doc.text('TOTAL VALUATION', 25, 43)
     doc.text('TOTAL REVENUE', 80, 43)
     doc.text('TOTAL OUTLAYS', 135, 43)
@@ -167,20 +172,20 @@ export default function AnalyticsView({ onRefresh }) {
     doc.text('NET MARGIN', 245, 43)
 
     doc.setFontSize(12)
-    doc.setTextColor(...primaryColor)
+    setText(doc, primaryColor)
     doc.text(formatINR(totalContract), 25, 52)
     doc.text(formatINR(totalCollected), 80, 52)
     doc.text(formatINR(totalExpenses), 135, 52)
-    doc.setTextColor(...(totalProfit >= 0 ? [6, 95, 70] : [153, 27, 27])) // Green or red
+    setText(doc, totalProfit >= 0 ? [6, 95, 70] : [153, 27, 27]) // Green or red
     doc.text(formatINR(totalProfit), 190, 52)
     doc.text(`${averageMargin.toFixed(1)}%`, 245, 52)
 
     // ── FINANCIAL LEDGER TABLE ──
     doc.setFont('Helvetica', 'bold')
     doc.setFontSize(11)
-    doc.setTextColor(...primaryColor)
+    setText(doc, primaryColor)
     doc.text('PROJECT STATEMENT BREAKDOWN', 20, 72)
-    doc.setDrawColor(...accentColor)
+    setDraw(doc, accentColor)
     doc.setLineWidth(0.8)
     doc.line(20, 74, 50, 74)
 
@@ -189,7 +194,7 @@ export default function AnalyticsView({ onRefresh }) {
     doc.rect(20, 80, 257, 8, 'F')
     doc.setFont('Helvetica', 'bold')
     doc.setFontSize(8.5)
-    doc.setTextColor(...primaryColor)
+    setText(doc, primaryColor)
     doc.text('PROJECT NAME', 23, 85.5)
     doc.text('CLIENT', 70, 85.5)
     doc.text('CONTRACT VALUE', 115, 85.5)
@@ -206,12 +211,12 @@ export default function AnalyticsView({ onRefresh }) {
     pnlData.forEach((p, index) => {
       if (y > pageHeightLimit) {
         doc.addPage()
-        doc.setFillColor(...accentColor)
+        setFill(doc, accentColor)
         doc.rect(0, 0, 297, 8, 'F')
         
         doc.setFont('Helvetica', 'bold')
         doc.setFontSize(10)
-        doc.setTextColor(...primaryColor)
+        setText(doc, primaryColor)
         doc.text('DHATRI CONSTRUCTIONS - FINANCIAL LEDGER AUDIT (CONT.)', 20, 20)
         
         doc.setDrawColor(226, 232, 240)
@@ -236,13 +241,13 @@ export default function AnalyticsView({ onRefresh }) {
         doc.rect(20, y - 5, 257, 7, 'F')
       }
 
-      doc.setTextColor(...primaryColor)
+      setText(doc, primaryColor)
       doc.text(p.name, 23, y)
       doc.text(p.client, 70, y)
       doc.text(formatINR(p.contract_value), 115, y)
       doc.text(formatINR(p.amount_received), 160, y)
       doc.text(formatINR(p.total_expenses), 205, y)
-      doc.setTextColor(...(p.net_profit >= 0 ? [6, 95, 70] : [153, 27, 27]))
+      setText(doc, p.net_profit >= 0 ? [6, 95, 70] : [153, 27, 27])
       doc.text(formatINR(p.net_profit), 245, y)
 
       doc.setDrawColor(241, 245, 249)
@@ -261,7 +266,7 @@ export default function AnalyticsView({ onRefresh }) {
 
       doc.setFont('Helvetica', 'normal')
       doc.setFontSize(7.5)
-      doc.setTextColor(...mutedColor)
+      setText(doc, mutedColor)
       doc.text('Dhatri Constructions - Enterprise Resource Ledger Statement (Confidential)', 20, 197)
       doc.text(`Page ${i} of ${totalPages}`, 260, 197)
     }

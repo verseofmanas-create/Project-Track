@@ -127,32 +127,37 @@ export default function ReportsView({ role, projects }) {
     const mutedColor = [100, 116, 139]  // slate-500
     const lightBg = [248, 250, 252]    // slate-50
 
+    // Color helpers to avoid spread operator argument mapping issues in transpiled ESM code
+    const setFill = (pdf, color) => pdf.setFillColor(color[0], color[1], color[2])
+    const setText = (pdf, color) => pdf.setTextColor(color[0], color[1], color[2])
+    const setDraw = (pdf, color) => pdf.setDrawColor(color[0], color[1], color[2])
+
     const drawHeader = (pdfPage) => {
       // Top border banner
-      pdfPage.setFillColor(...accentColor)
+      setFill(pdfPage, accentColor)
       pdfPage.rect(0, 0, 210, 8, 'F')
 
       // Company logo & Name
       pdfPage.setFont('Helvetica', 'bold')
       pdfPage.setFontSize(16)
-      pdfPage.setTextColor(...primaryColor)
+      setText(pdfPage, primaryColor)
       pdfPage.text('DHATRI CONSTRUCTIONS', 20, 22)
 
       pdfPage.setFont('Helvetica', 'normal')
       pdfPage.setFontSize(8)
-      pdfPage.setTextColor(...mutedColor)
+      setText(pdfPage, mutedColor)
       pdfPage.text('ENTERPRISE PROJECT MANAGEMENT PORTAL', 20, 26)
 
       // Document type identifier
       pdfPage.setFont('Helvetica', 'bold')
       pdfPage.setFontSize(10)
-      pdfPage.setTextColor(...accentColor)
+      setText(pdfPage, accentColor)
       pdfPage.text('OFFICIAL PROJECT REPORT', 140, 22)
       
       // Date
       pdfPage.setFont('Helvetica', 'normal')
       pdfPage.setFontSize(8)
-      pdfPage.setTextColor(...mutedColor)
+      setText(pdfPage, mutedColor)
       pdfPage.text(`EXPORTED: ${new Date().toLocaleDateString()}`, 140, 26)
 
       // Line separator
@@ -169,7 +174,7 @@ export default function ReportsView({ role, projects }) {
 
       pdfPage.setFont('Helvetica', 'normal')
       pdfPage.setFontSize(8)
-      pdfPage.setTextColor(...mutedColor)
+      setText(pdfPage, mutedColor)
       pdfPage.text('Confidential - For Internal Use Only', 20, 286)
       pdfPage.text(`Page ${pageNum} of ${totalPages}`, 170, 286)
     }
@@ -178,7 +183,7 @@ export default function ReportsView({ role, projects }) {
     drawHeader(doc)
 
     // ── METADATA GRID BOX ──
-    doc.setFillColor(...lightBg)
+    setFill(doc, lightBg)
     doc.rect(20, 36, 170, 48, 'F')
     doc.setDrawColor(226, 232, 240)
     doc.rect(20, 36, 170, 48, 'S')
@@ -186,7 +191,7 @@ export default function ReportsView({ role, projects }) {
     // Metadata labels & values
     doc.setFont('Helvetica', 'bold')
     doc.setFontSize(9)
-    doc.setTextColor(...mutedColor)
+    setText(doc, mutedColor)
     doc.text('REPORT TITLE:', 25, 43)
     doc.text('PROJECT:', 25, 51)
     doc.text('REPORT TYPE:', 25, 59)
@@ -194,23 +199,23 @@ export default function ReportsView({ role, projects }) {
     doc.text('DATE:', 25, 75)
 
     doc.setFont('Helvetica', 'normal')
-    doc.setTextColor(...primaryColor)
+    setText(doc, primaryColor)
     doc.setFontSize(10)
     
     // Bold title
     doc.setFont('Helvetica', 'bold')
-    doc.text(report.title, 55, 43)
+    doc.text(report.title || 'Untitled Report', 55, 43)
     doc.setFont('Helvetica', 'normal')
     doc.text(report.project_name || 'N/A', 55, 51)
-    doc.text(report.type, 55, 59)
-    doc.text(report.generated_by, 55, 67)
+    doc.text(report.type || 'Progress', 55, 59)
+    doc.text(report.generated_by || 'Unknown', 55, 67)
     doc.setFont('Helvetica', 'bold')
-    doc.text(report.date, 55, 75)
+    doc.text(report.date || new Date().toLocaleDateString(), 55, 75)
 
     // Status Badge in Metadata Box
     doc.setFont('Helvetica', 'bold')
     doc.setFontSize(9)
-    doc.setTextColor(...mutedColor)
+    setText(doc, mutedColor)
     doc.text('STATUS:', 130, 43)
     
     if (report.status === 'Published') {
@@ -230,11 +235,11 @@ export default function ReportsView({ role, projects }) {
     // ── EXECUTIVE SUMMARY / CONTENT ──
     doc.setFont('Helvetica', 'bold')
     doc.setFontSize(11)
-    doc.setTextColor(...primaryColor)
+    setText(doc, primaryColor)
     doc.text('REPORT CONTENT & EXECUTIVE SUMMARY', 20, 94)
 
     // Underline for section title
-    doc.setDrawColor(...accentColor)
+    setDraw(doc, accentColor)
     doc.setLineWidth(0.8)
     doc.line(20, 96, 60, 96)
 
@@ -243,7 +248,8 @@ export default function ReportsView({ role, projects }) {
     doc.setFontSize(10)
     doc.setTextColor(51, 65, 85) // slate-700
     
-    const textLines = doc.splitTextToSize(report.content, 170)
+    const contentText = report.content || 'No content provided.'
+    const textLines = doc.splitTextToSize(contentText, 170)
     let y = 104
     const pageHeightLimit = 265
 
@@ -266,7 +272,7 @@ export default function ReportsView({ role, projects }) {
     }
 
     // Save the PDF
-    const filename = `${report.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_report.pdf`
+    const filename = `${(report.title || 'report').toLowerCase().replace(/[^a-z0-9]+/g, '_')}_report.pdf`
     doc.save(filename)
   }
 
