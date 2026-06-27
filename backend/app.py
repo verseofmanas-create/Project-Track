@@ -50,10 +50,24 @@ def health():
 @app.route('/<path:path>')
 def serve(path):
     print(f"DEBUG: Received request for path: '{path}'")
+    
+    # If the path starts with assets/ and doesn't exist, return 404
+    if path.startswith('assets/'):
+        if os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        else:
+            return "Asset not found", 404
+            
+    # For any other path, if it exists, serve it
     if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
-    else:
-        return send_from_directory(app.static_folder, 'index.html')
+    
+    # Otherwise fallback to index.html for SPA routing, and disable caching
+    response = send_from_directory(app.static_folder, 'index.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 if __name__ == '__main__':
     # Run on port 5050
