@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  LayoutDashboard, 
-  FolderKanban, 
-  BarChart3, 
-  Menu, 
-  X, 
-  User, 
+import {
+  LayoutDashboard,
+  FolderKanban,
+  BarChart3,
+  Menu,
+  X,
+  User,
   Users,
-  Shield, 
-  Building2, 
+  Shield,
+  Building2,
   ChevronRight,
   Home,
   Camera,
@@ -25,6 +25,7 @@ import LoginView from './components/LoginView'
 import ReportsView from './components/ReportsView'
 import IssuesView from './components/IssuesView'
 import UsersView from './components/UsersView'
+import Toast from './components/Toast'
 
 export default function App() {
   // Global State
@@ -46,6 +47,13 @@ export default function App() {
   const [activeView, setActiveView] = useState('home') // 'home', 'dashboard', 'workspace', 'analytics', 'reports', 'issues'
   const [selectedProjectId, setSelectedProjectId] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Toast notifications state
+  const [toast, setToast] = useState(null)
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+  }
+
 
   // Sync role when currentUser changes
   useEffect(() => {
@@ -103,7 +111,7 @@ export default function App() {
       setActiveView('home')
     }
   }
-  
+
   // Profile State
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('projecttrack_user_profile')
@@ -140,7 +148,7 @@ export default function App() {
     setIsProfileModalOpen(false)
   }
 
-  
+
   const [projects, setProjects] = useState([])
   const [summary, setSummary] = useState({
     total_active_projects: 0,
@@ -157,11 +165,11 @@ export default function App() {
       const projRes = await fetch('/api/projects')
       const projData = await projRes.json()
       setProjects(projData)
-      
+
       const sumRes = await fetch('/api/analytics/summary')
       const sumData = await sumRes.json()
       setSummary(sumData)
-      
+
       // Auto select first project if none is selected
       if (projData.length > 0 && !selectedProjectId) {
         setSelectedProjectId(projData[0].id)
@@ -191,7 +199,7 @@ export default function App() {
       const projRes = await fetch('/api/projects')
       const projData = await projRes.json()
       setProjects(projData)
-      
+
       const sumRes = await fetch('/api/analytics/summary')
       const sumData = await sumRes.json()
       setSummary(sumData)
@@ -218,16 +226,16 @@ export default function App() {
     const trail = [
       { label: 'Home', view: 'home' }
     ]
-    
+
     if (activeView === 'home') {
       // No extra crumbs for home
     } else if (activeView === 'dashboard') {
       trail.push({ label: 'Dashboard', view: 'dashboard' })
     } else if (activeView === 'workspace') {
       trail.push({ label: 'Dashboard', view: 'dashboard' })
-      trail.push({ 
-        label: activeProject ? activeProject.name : 'Workspace', 
-        view: 'workspace' 
+      trail.push({
+        label: activeProject ? activeProject.name : 'Workspace',
+        view: 'workspace'
       })
     } else if (activeView === 'analytics') {
       trail.push({ label: 'Financial Analytics', view: 'analytics' })
@@ -243,22 +251,22 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <LoginView 
+      <LoginView
         onLoginSuccess={(user) => {
           setCurrentUser(user)
           setIsAuthenticated(true)
-        }} 
+        }}
       />
     )
   }
 
   return (
     <div className="flex h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
-      
+
       {/* ── Sidebar (Desktop Persistent / Mobile Overlay) ── */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800/80 p-4 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:relative lg:h-full lg:block flex-shrink-0 flex flex-col
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800/80 p-4 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:relative lg:h-full flex-shrink-0 flex-col
+        ${sidebarOpen ? 'translate-x-0 flex' : '-translate-x-full hidden lg:flex'}
       `}>
         {/* Brand Header */}
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800/60">
@@ -276,7 +284,7 @@ export default function App() {
             </div>
           </div>
           {/* Mobile Close Button */}
-          <button 
+          <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
           >
@@ -288,11 +296,10 @@ export default function App() {
         <nav className="space-y-1 flex-1 overflow-y-auto pr-1 pb-32">
           <button
             onClick={() => { setActiveView('home'); setSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${
-              activeView === 'home'
-                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-            }`}
+            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${activeView === 'home'
+              ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
           >
             <Home className={`w-5 h-5 transition-colors ${activeView === 'home' ? 'text-white' : 'text-slate-400 group-hover:text-amber-500'}`} />
             <span>Home</span>
@@ -300,11 +307,10 @@ export default function App() {
 
           <button
             onClick={() => { setActiveView('dashboard'); setSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${
-              activeView === 'dashboard'
-                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-            }`}
+            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${activeView === 'dashboard'
+              ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
           >
             <LayoutDashboard className={`w-5 h-5 transition-colors ${activeView === 'dashboard' ? 'text-white' : 'text-slate-400 group-hover:text-amber-500'}`} />
             <span>Dashboard</span>
@@ -312,11 +318,10 @@ export default function App() {
 
           <button
             onClick={() => { setActiveView('workspace'); setSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${
-              activeView === 'workspace'
-                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-            }`}
+            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${activeView === 'workspace'
+              ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
           >
             <FolderKanban className={`w-5 h-5 transition-colors ${activeView === 'workspace' ? 'text-white' : 'text-slate-400 group-hover:text-amber-500'}`} />
             <span>Project Workspace</span>
@@ -326,11 +331,10 @@ export default function App() {
           {role === 'Admin' && (
             <button
               onClick={() => { setActiveView('analytics'); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${
-                activeView === 'analytics'
-                  ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-              }`}
+              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${activeView === 'analytics'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
             >
               <BarChart3 className={`w-5 h-5 transition-colors ${activeView === 'analytics' ? 'text-white' : 'text-slate-400 group-hover:text-amber-500'}`} />
               <span>Financial Analytics</span>
@@ -339,11 +343,10 @@ export default function App() {
 
           <button
             onClick={() => { setActiveView('reports'); setSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${
-              activeView === 'reports'
-                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-            }`}
+            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${activeView === 'reports'
+              ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
           >
             <FileText className={`w-5 h-5 transition-colors ${activeView === 'reports' ? 'text-white' : 'text-slate-400 group-hover:text-amber-500'}`} />
             <span>Project Reports</span>
@@ -351,11 +354,10 @@ export default function App() {
 
           <button
             onClick={() => { setActiveView('issues'); setSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${
-              activeView === 'issues'
-                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-            }`}
+            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${activeView === 'issues'
+              ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
           >
             <AlertOctagon className={`w-5 h-5 transition-colors ${activeView === 'issues' ? 'text-white' : 'text-slate-400 group-hover:text-amber-500'}`} />
             <span>Issues & Risks</span>
@@ -364,11 +366,10 @@ export default function App() {
           {role === 'Admin' && (
             <button
               onClick={() => { setActiveView('users'); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${
-                activeView === 'users'
-                  ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-              }`}
+              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all group ${activeView === 'users'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 font-semibold'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
             >
               <Users className={`w-5 h-5 transition-colors ${activeView === 'users' ? 'text-white' : 'text-slate-400 group-hover:text-amber-500'}`} />
               <span>User Management</span>
@@ -401,7 +402,7 @@ export default function App() {
 
       {/* Backdrop for Mobile Sidebar */}
       {sidebarOpen && (
-        <div 
+        <div
           onClick={() => setSidebarOpen(false)}
           className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
         />
@@ -409,15 +410,15 @@ export default function App() {
 
       {/* ── Main Container ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        
+
         {/* ── Top Header Navbar ── */}
         <header className="h-16 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md px-4 lg:px-8 flex items-center justify-between sticky top-0 z-20">
-          
+
           {/* Breadcrumb Trail */}
           <div className="flex items-center gap-4 min-w-0">
-            <button 
+            <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+              className="lg:hidden p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white flex-shrink-0"
             >
               <Menu className="w-5.5 h-5.5" />
             </button>
@@ -430,13 +431,12 @@ export default function App() {
               {getBreadcrumbs().map((b, i) => (
                 <React.Fragment key={i}>
                   <ChevronRight className="w-3 h-3 text-slate-600 flex-shrink-0" />
-                  <span 
+                  <span
                     onClick={() => setActiveView(b.view)}
-                    className={`cursor-pointer transition-colors max-w-[180px] truncate ${
-                      i === getBreadcrumbs().length - 1 
-                        ? 'text-white font-semibold cursor-default pointer-events-none' 
-                        : 'hover:text-amber-500'
-                    }`}
+                    className={`cursor-pointer transition-colors max-w-[180px] truncate ${i === getBreadcrumbs().length - 1
+                      ? 'text-white font-semibold cursor-default pointer-events-none'
+                      : 'hover:text-amber-500'
+                      }`}
                   >
                     {b.label}
                   </span>
@@ -450,46 +450,43 @@ export default function App() {
 
           {/* Role Enforcement Switcher & User Profile */}
           <div className="flex items-center gap-4 flex-shrink-0">
-            
+
             {/* Toggle switch for role (Admin can switch to any, others are locked to their own) */}
-            <div className="flex items-center gap-1.5 bg-slate-950/60 border border-slate-800/80 p-1 rounded-xl">
+            <div className="flex items-center gap-1 bg-slate-950/60 border border-slate-800/80 p-0.5 sm:p-1 rounded-xl">
               <button
                 disabled={currentUser && currentUser.role !== 'Admin'}
                 onClick={() => setRole('Admin')}
-                className={`px-2 py-1 rounded-lg text-[10px] font-semibold tracking-wide transition-all ${
-                  role === 'Admin'
-                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/10 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                } ${currentUser && currentUser.role !== 'Admin' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-semibold tracking-wide transition-all ${role === 'Admin'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/10 font-bold'
+                  : 'text-slate-400 hover:text-white'
+                  } ${currentUser && currentUser.role !== 'Admin' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 Admin
               </button>
               <button
                 disabled={currentUser && currentUser.role !== 'Admin' && currentUser.role !== 'Site Manager'}
                 onClick={() => setRole('Site Manager')}
-                className={`px-2 py-1 rounded-lg text-[10px] font-semibold tracking-wide transition-all ${
-                  role === 'Site Manager'
-                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/10 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                } ${currentUser && currentUser.role !== 'Admin' && currentUser.role !== 'Site Manager' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-semibold tracking-wide transition-all ${role === 'Site Manager'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/10 font-bold'
+                  : 'text-slate-400 hover:text-white'
+                  } ${currentUser && currentUser.role !== 'Admin' && currentUser.role !== 'Site Manager' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 Manager
               </button>
               <button
                 disabled={currentUser && currentUser.role !== 'Admin' && currentUser.role !== 'Client'}
                 onClick={() => setRole('Client')}
-                className={`px-2 py-1 rounded-lg text-[10px] font-semibold tracking-wide transition-all ${
-                  role === 'Client'
-                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/10 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                } ${currentUser && currentUser.role !== 'Admin' && currentUser.role !== 'Client' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-semibold tracking-wide transition-all ${role === 'Client'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/10 font-bold'
+                  : 'text-slate-400 hover:text-white'
+                  } ${currentUser && currentUser.role !== 'Admin' && currentUser.role !== 'Client' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 Client
               </button>
             </div>
 
             {/* Profile */}
-            <button 
+            <button
               onClick={openProfileModal}
               className="hidden sm:flex items-center gap-3 pl-2 border-l border-slate-800/60 text-left hover:opacity-80 transition-opacity focus:outline-none"
               title="Edit Profile"
@@ -511,7 +508,7 @@ export default function App() {
 
         {/* ── Page View Area ── */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-8 space-y-8">
-          
+
           {loading ? (
             /* Premium Loading Skeleton */
             <div className="space-y-8 animate-pulse">
@@ -540,47 +537,54 @@ export default function App() {
                   role={role}
                   onNavigate={handleHomeNavigate}
                   userName={userProfile.name.split(' ')[0]}
+                  showToast={showToast}
                 />
               )}
               {activeView === 'dashboard' && (
-                <DashboardView 
+                <DashboardView
                   projects={projects}
                   summary={summary}
                   role={role}
                   onViewDetails={handleViewProjectDetails}
                   onRefresh={handleRefresh}
+                  showToast={showToast}
                 />
               )}
               {activeView === 'workspace' && (
-                <ProjectWorkspaceView 
+                <ProjectWorkspaceView
                   projectId={selectedProjectId}
                   role={role}
                   projects={projects} // to select project switchers
                   onChangeProject={setSelectedProjectId}
                   onRefresh={handleRefresh}
+                  showToast={showToast}
                 />
               )}
               {activeView === 'analytics' && role === 'Admin' && (
-                <AnalyticsView 
+                <AnalyticsView
                   onRefresh={handleRefresh}
+                  showToast={showToast}
                 />
               )}
               {activeView === 'reports' && (
-                <ReportsView 
+                <ReportsView
                   role={role}
                   projects={projects}
+                  showToast={showToast}
                 />
               )}
               {activeView === 'issues' && (
-                <IssuesView 
+                <IssuesView
                   role={role}
                   projects={projects}
                   currentUser={currentUser}
+                  showToast={showToast}
                 />
               )}
               {activeView === 'users' && role === 'Admin' && (
-                <UsersView 
+                <UsersView
                   role={role}
+                  showToast={showToast}
                 />
               )}
             </>
@@ -592,18 +596,18 @@ export default function App() {
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Overlay */}
-          <div 
+          <div
             onClick={() => setIsProfileModalOpen(false)}
             className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm"
           />
-          
+
           {/* Content */}
           <div className="relative bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full overflow-hidden shadow-2xl animate-slide-up">
-            
+
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-850 flex justify-between items-center">
               <h3 className="text-sm font-bold text-white font-display uppercase tracking-wider">Edit User Profile</h3>
-              <button 
+              <button
                 onClick={() => setIsProfileModalOpen(false)}
                 className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
               >
@@ -613,7 +617,7 @@ export default function App() {
 
             {/* Modal Form */}
             <form onSubmit={handleSaveProfile} className="p-6 space-y-5">
-              
+
               {/* Photo Upload Area */}
               <div className="flex flex-col items-center space-y-3">
                 <div className="relative group w-20 h-20 rounded-full border-2 border-slate-800 flex items-center justify-center overflow-hidden bg-slate-950/60">
@@ -623,7 +627,7 @@ export default function App() {
                     <User className="w-8 h-8 text-slate-600" />
                   )}
                   {/* Hover Upload Overlay */}
-                  <label 
+                  <label
                     htmlFor="avatar-file-input"
                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-slate-200 font-bold uppercase tracking-wider cursor-pointer transition-opacity"
                   >
@@ -631,10 +635,10 @@ export default function App() {
                     Upload
                   </label>
                 </div>
-                
+
                 {/* Hidden File Input */}
-                <input 
-                  type="file" 
+                <input
+                  type="file"
                   id="avatar-file-input"
                   accept="image/*"
                   onChange={handleAvatarChange}
@@ -642,13 +646,13 @@ export default function App() {
                 />
 
                 <div className="flex gap-2">
-                  <label 
+                  <label
                     htmlFor="avatar-file-input"
                     className="px-2.5 py-1 bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-300 rounded text-[10px] font-bold uppercase tracking-wide cursor-pointer transition-all"
                   >
                     Select Photo
                   </label>
-                  
+
                   {profileForm.avatar && (
                     <button
                       type="button"
@@ -674,7 +678,7 @@ export default function App() {
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-slate-200 focus-ring placeholder-slate-700"
                   />
                 </div>
-                
+
                 <div className="space-y-1">
                   <label className="text-[10px] text-slate-500 uppercase font-semibold">Location</label>
                   <input
@@ -710,6 +714,10 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Toast Notification */}
+      <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   )
 }
+

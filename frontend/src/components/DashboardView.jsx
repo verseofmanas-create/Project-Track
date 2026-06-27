@@ -18,7 +18,8 @@ import {
   Trash2,
   AlertTriangle,
   FileText,
-  AlertOctagon
+  AlertOctagon,
+  CheckCircle
 } from 'lucide-react'
 
 // Formatting helper for Indian Currency (INR)
@@ -31,7 +32,7 @@ export function formatINR(num) {
   }).format(num)
 }
 
-export default function DashboardView({ projects, summary, role, onViewDetails, onRefresh }) {
+export default function DashboardView({ projects, summary, role, onViewDetails, onRefresh, showToast }) {
   // Filters State
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClient, setSelectedClient] = useState('All')
@@ -128,6 +129,26 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
       setFormError('Please fill in all required fields.')
       return
     }
+
+    const contractVal = parseFloat(formData.contract_value)
+    if (isNaN(contractVal) || contractVal <= 0) {
+      setFormError('Contract value must be a positive number.')
+      showToast('Contract value must be greater than zero.', 'error')
+      return
+    }
+
+    const amountRec = parseFloat(formData.amount_received || 0)
+    if (isNaN(amountRec) || amountRec < 0) {
+      setFormError('Amount received cannot be negative.')
+      showToast('Amount received cannot be negative.', 'error')
+      return
+    }
+
+    if (formData.end_date < formData.start_date) {
+      setFormError('Target Completion date cannot be prior to Start date.')
+      showToast('Target Completion date cannot be prior to Start date.', 'error')
+      return
+    }
     
     setSubmitting(true)
     try {
@@ -138,8 +159,10 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
         },
         body: JSON.stringify({
           ...formData,
-          contract_value: parseFloat(formData.contract_value),
-          amount_received: parseFloat(formData.amount_received || 0),
+          name: formData.name.trim(),
+          client: formData.client.trim(),
+          contract_value: contractVal,
+          amount_received: amountRec,
           completion_percentage: parseFloat(formData.completion_percentage || 0)
         })
       })
@@ -156,12 +179,15 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
           completion_percentage: 0,
           health_status: 'On Track'
         })
+        showToast('Project created successfully', 'success')
         onRefresh()
       } else {
         setFormError(data.error || 'Failed to create project.')
+        showToast(data.error || 'Failed to create project.', 'error')
       }
     } catch (e) {
       setFormError('Network error occurred. Please try again.')
+      showToast('Network error occurred.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -196,17 +222,31 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
       setEditFormError('Please fill in all required fields.')
       return
     }
+
+    const contractVal = parseFloat(editFormData.contract_value)
+    if (isNaN(contractVal) || contractVal <= 0) {
+      setEditFormError('Contract value must be a positive number.')
+      showToast('Contract value must be greater than zero.', 'error')
+      return
+    }
+
+    if (editFormData.end_date < editFormData.start_date) {
+      setEditFormError('Target Completion date cannot be prior to Start date.')
+      showToast('Target Completion date cannot be prior to Start date.', 'error')
+      return
+    }
+
     setEditSubmitting(true)
     try {
       const res = await fetch(`/api/projects/${editFormData.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: editFormData.name,
-          client: editFormData.client,
+          name: editFormData.name.trim(),
+          client: editFormData.client.trim(),
           start_date: editFormData.start_date,
           end_date: editFormData.end_date,
-          contract_value: parseFloat(editFormData.contract_value),
+          contract_value: contractVal,
           completion_percentage: parseFloat(editFormData.completion_percentage),
           health_status: editFormData.health_status
         })
@@ -215,12 +255,15 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
       if (res.ok) {
         setIsEditModalOpen(false)
         setEditFormData(null)
+        showToast('Project updated successfully', 'success')
         onRefresh()
       } else {
         setEditFormError(data.error || 'Failed to update project.')
+        showToast(data.error || 'Failed to update project.', 'error')
       }
     } catch (err) {
       setEditFormError('Network error occurred.')
+      showToast('Network error occurred.', 'error')
     } finally {
       setEditSubmitting(false)
     }
@@ -234,27 +277,47 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
       const res = await fetch(`/api/projects/${deleteConfirm.id}`, { method: 'DELETE' })
       if (res.ok) {
         setDeleteConfirm(null)
+        showToast('Project deleted successfully', 'success')
         onRefresh()
+      } else {
+        const errData = await res.json()
+        showToast(errData.error || 'Failed to delete project.', 'error')
       }
     } catch (err) {
       console.error('Delete failed:', err)
+      showToast('Network error occurred.', 'error')
     } finally {
       setDeleting(false)
     }
   }
 
-  // Helper for Health Badges CSS
-  const getHealthBadgeStyle = (status) => {
+  // Helper to render health status badge with Lucide icon
+  const renderHealthBadge = (status) => {
+    let classes = ''
+    let Icon = null
     switch (status) {
       case 'On Track':
-        return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        classes = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+        Icon = CheckCircle
+        break
       case 'At Risk':
-        return 'bg-amber-50 text-amber-700 border border-amber-200'
+        classes = 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+        Icon = AlertTriangle
+        break
       case 'Delayed':
-        return 'bg-rose-50 text-rose-700 border border-rose-200'
+        classes = 'bg-rose-500/10 text-rose-450 border border-rose-500/20'
+        Icon = AlertOctagon
+        break
       default:
-        return 'bg-slate-100 text-slate-700 border border-slate-200'
+        classes = 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+        Icon = AlertCircle
     }
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 text-[9px] md:text-[10px] font-bold uppercase rounded-full tracking-wider ${classes} flex-shrink-0`}>
+        {Icon && <Icon className="w-3 h-3 flex-shrink-0" />}
+        <span>{status}</span>
+      </span>
+    )
   }
 
   return (
@@ -409,12 +472,29 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
         </div>      </div>
 
       {/* ── Project Summary Data Grid ── */}
-      {filteredProjects.length === 0 ? (
-        <div className="glass-panel py-16 px-4 rounded-xl text-center border-slate-800/80">
-          <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h4 className="text-lg font-bold text-slate-300">No Projects Found</h4>
-          <p className="text-sm text-slate-500 max-w-md mx-auto mt-1">
-            Try adjusting your search query or dropdown filter variables to find the construction record.
+      {projects.length === 0 ? (
+        <div className="glass-panel py-16 px-4 rounded-xl text-center border-slate-800/80 max-w-md mx-auto space-y-4">
+          <Briefcase className="w-12 h-12 text-slate-650 mx-auto" />
+          <h4 className="text-lg font-bold text-slate-300">No Projects Configured</h4>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            There are no construction projects registered in the database. Initialize a new project below to get started.
+          </p>
+          {role === 'Admin' && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-lg shadow-orange-600/10"
+            >
+              <Plus className="w-4 h-4" />
+              Add Project
+            </button>
+          )}
+        </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="glass-panel py-16 px-4 rounded-xl text-center border-slate-800/80 max-w-md mx-auto space-y-2">
+          <AlertCircle className="w-12 h-12 text-slate-650 mx-auto" />
+          <h4 className="text-lg font-bold text-slate-300">No Results Found</h4>
+          <p className="text-sm text-slate-500">
+            Try adjusting your search query or dropdown filter selections to find matching construction records.
           </p>
         </div>
       ) : (
@@ -439,9 +519,7 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
                   </div>
 
                   {/* Health Badge */}
-                  <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full tracking-wider ${getHealthBadgeStyle(proj.health_status)}`}>
-                    {proj.health_status}
-                  </span>
+                  {renderHealthBadge(proj.health_status)}
                 </div>
 
                 {/* Overdue Alert banner inside card (Admin Only) */}
@@ -543,7 +621,7 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
           />
           
           {/* Content container */}
-          <div className="relative bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full overflow-hidden shadow-2xl animate-slide-up">
+          <div className="relative bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-slide-up">
             
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
@@ -710,7 +788,7 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
             onClick={() => setIsEditModalOpen(false)}
             className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
           />
-          <div className="relative bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full overflow-hidden shadow-2xl animate-slide-up">
+          <div className="relative bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-slide-up">
             <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
               <h3 className="text-base font-bold text-white font-display uppercase tracking-wider">Edit Project</h3>
               <button 
@@ -874,9 +952,7 @@ export default function DashboardView({ projects, summary, role, onViewDetails, 
                     <div className="flex justify-between items-center text-xs border-t border-slate-900 pt-3">
                       <div>
                         <span className="text-slate-500 font-medium block">Health Status</span>
-                        <span className={`inline-block px-2.5 py-0.5 mt-1 text-[10px] font-bold uppercase rounded-full tracking-wider ${getHealthBadgeStyle(selectedProjectForModal.health_status)}`}>
-                          {selectedProjectForModal.health_status}
-                        </span>
+                        {renderHealthBadge(selectedProjectForModal.health_status)}
                       </div>
                       <div className="text-right">
                         <span className="text-slate-500 font-medium block">Project ID</span>

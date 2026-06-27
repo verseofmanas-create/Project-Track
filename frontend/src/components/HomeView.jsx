@@ -14,7 +14,9 @@ import {
   CalendarClock,
   Sparkles,
   FileText,
-  AlertOctagon
+  AlertOctagon,
+  CheckCircle,
+  AlertTriangle
 } from 'lucide-react'
 import { formatINR } from './DashboardView'
 
@@ -240,17 +242,26 @@ export default function HomeView({ projects, summary, role, onNavigate, userName
           <div className="p-5 space-y-5">
             {/* Health bars */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="bg-slate-950/40 border border-slate-800/40 rounded-lg p-3.5 text-center space-y-1.5">
-                <span className="text-2xl font-display font-extrabold text-emerald-400">{onTrack}</span>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">On Track</p>
+              <div className="bg-slate-950/40 border border-slate-800/40 rounded-lg p-3 text-center space-y-1 flex flex-col items-center justify-center">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  <span className="text-xl font-display font-extrabold text-emerald-400">{onTrack}</span>
+                </div>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">On Track</p>
               </div>
-              <div className="bg-slate-950/40 border border-slate-800/40 rounded-lg p-3.5 text-center space-y-1.5">
-                <span className="text-2xl font-display font-extrabold text-amber-400">{atRisk}</span>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">At Risk</p>
+              <div className="bg-slate-950/40 border border-slate-800/40 rounded-lg p-3 text-center space-y-1 flex flex-col items-center justify-center">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-450 flex-shrink-0" />
+                  <span className="text-xl font-display font-extrabold text-amber-450">{atRisk}</span>
+                </div>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">At Risk</p>
               </div>
-              <div className="bg-slate-950/40 border border-slate-800/40 rounded-lg p-3.5 text-center space-y-1.5">
-                <span className="text-2xl font-display font-extrabold text-rose-400">{delayed}</span>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Delayed</p>
+              <div className="bg-slate-950/40 border border-slate-800/40 rounded-lg p-3 text-center space-y-1 flex flex-col items-center justify-center">
+                <div className="flex items-center gap-1.5">
+                  <AlertOctagon className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                  <span className="text-xl font-display font-extrabold text-rose-400">{delayed}</span>
+                </div>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Delayed</p>
               </div>
             </div>
 
@@ -277,9 +288,10 @@ export default function HomeView({ projects, summary, role, onNavigate, userName
                   className="w-full flex items-center justify-between p-3 rounded-lg bg-slate-950/30 border border-slate-850 hover:bg-slate-900/30 hover:border-slate-800 transition-all group text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      p.health_status === 'On Track' ? 'bg-emerald-400' : 
-                      p.health_status === 'At Risk' ? 'bg-amber-400' : 'bg-rose-400'
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 animate-pulse ${
+                      p.health_status === 'On Track' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 
+                      p.health_status === 'At Risk' ? 'bg-amber-400 shadow-sm shadow-amber-400/50' : 
+                      'bg-rose-400 shadow-sm shadow-rose-400/50'
                     }`} />
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-slate-200 truncate group-hover:text-white transition-colors">{p.name}</p>
@@ -350,12 +362,15 @@ export default function HomeView({ projects, summary, role, onNavigate, userName
                     <CalendarClock className="w-3.5 h-3.5 text-slate-500" />
                     {new Date(upcomingProject.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                    upcomingProject.health_status === 'On Track' ? 'bg-emerald-50 text-emerald-700' :
-                    upcomingProject.health_status === 'At Risk' ? 'bg-amber-50 text-amber-700' :
-                    'bg-rose-50 text-rose-700'
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide flex-shrink-0 ${
+                    upcomingProject.health_status === 'On Track' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                    upcomingProject.health_status === 'At Risk' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                    'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                   }`}>
-                    {upcomingProject.health_status}
+                    {upcomingProject.health_status === 'On Track' && <CheckCircle className="w-2.5 h-2.5 flex-shrink-0" />}
+                    {upcomingProject.health_status === 'At Risk' && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" />}
+                    {upcomingProject.health_status === 'Delayed' && <AlertOctagon className="w-2.5 h-2.5 flex-shrink-0" />}
+                    <span>{upcomingProject.health_status}</span>
                   </span>
                 </div>
                 <div className="mt-3 space-y-1.5">

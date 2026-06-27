@@ -1,10 +1,11 @@
 from flask import Blueprint, jsonify, request
 from api.db import get_db_connection
-from api.routes.auth import hash_pw
+from api.routes.auth import hash_pw, require_auth
 
 users_bp = Blueprint('users', __name__)
 
 @users_bp.route('/api/users', methods=['GET'])
+@require_auth(['Admin'])
 def get_users():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -14,6 +15,7 @@ def get_users():
     return jsonify([dict(r) for r in rows])
 
 @users_bp.route('/api/users', methods=['POST'])
+@require_auth(['Admin'])
 def create_user():
     data = request.json
     required = ['username', 'password', 'full_name', 'role']
@@ -21,11 +23,28 @@ def create_user():
         if not data or f not in data:
             return jsonify({"error": f"Field '{f}' is required"}), 400
 
+    username = data['username'].strip().lower()
+    password = data['password']
+    full_name = data['full_name'].strip()
+    role = data['role'].strip()
+    location = data.get('location', '').strip()
+
+    if not username:
+        return jsonify({"error": "Username cannot be empty"}), 400
+    if ' ' in username:
+        return jsonify({"error": "Username cannot contain spaces"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+    if not full_name:
+        return jsonify({"error": "Full name cannot be empty"}), 400
+    if role not in ['Admin', 'Site Manager', 'Client']:
+        return jsonify({"error": "Invalid role"}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor()
     
     # Check if username exists
-    cursor.execute("SELECT id FROM users WHERE username = %s", (data['username'],))
+    cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
     if cursor.fetchone():
         conn.close()
         return jsonify({"error": "Username already exists"}), 400
@@ -36,11 +55,11 @@ def create_user():
             VALUES (%s, %s, %s, %s, %s)
             RETURNING id
         ''', (
-            data['username'],
-            hash_pw(data['password']),
-            data['full_name'],
-            data['role'],
-            data.get('location', '')
+            username,
+            hash_pw(password),
+            full_name,
+            role,
+            location
         ))
         user_id = cursor.fetchone()['id']
         conn.commit()
@@ -52,6 +71,7 @@ def create_user():
         return jsonify({"error": str(e)}), 500
 
 @users_bp.route('/api/users/<int:user_id>', methods=['DELETE'])
+@require_auth(['Admin'])
 def delete_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -75,3 +95,4 @@ def delete_user(user_id):
         conn.rollback()
         conn.close()
         return jsonify({"error": str(e)}), 500
+

@@ -1,10 +1,12 @@
 from flask import Blueprint, jsonify, request
 from datetime import datetime
 from api.db import get_db_connection
+from api.routes.auth import require_auth
 
 projects_bp = Blueprint('projects', __name__)
 
 @projects_bp.route('/api/projects', methods=['GET'])
+@require_auth(['Admin', 'Site Manager', 'Client'])
 def get_projects():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -37,6 +39,7 @@ def get_projects():
     return jsonify(projects)
 
 @projects_bp.route('/api/projects', methods=['POST'])
+@require_auth(['Admin'])
 def create_project():
     data = request.json
     if not data:
@@ -47,6 +50,30 @@ def create_project():
         if f not in data:
             return jsonify({"error": f"Field '{f}' is required"}), 400
 
+    name = data['name'].strip()
+    client = data['client'].strip()
+    start_date = data['start_date'].strip()
+    end_date = data['end_date'].strip()
+
+    if not name or not client or not start_date or not end_date:
+        return jsonify({"error": "Fields cannot be blank or empty"}), 400
+
+    try:
+        contract_val = float(data['contract_value'])
+        amount_rec = float(data.get('amount_received', 0.0))
+        completion_pct = float(data.get('completion_percentage', 0.0))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Values for contract_value, amount_received, and completion_percentage must be numeric"}), 400
+
+    if contract_val <= 0:
+        return jsonify({"error": "Contract value must be greater than zero"}), 400
+    if amount_rec < 0:
+        return jsonify({"error": "Amount received cannot be negative"}), 400
+    if completion_pct < 0 or completion_pct > 100:
+        return jsonify({"error": "Completion percentage must be between 0 and 100"}), 400
+    if end_date < start_date:
+        return jsonify({"error": "End date cannot be prior to start date"}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -56,25 +83,25 @@ def create_project():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         ''', (
-            data['name'],
-            data['client'],
-            data['start_date'],
-            data['end_date'],
-            float(data.get('completion_percentage', 0.0)),
-            data.get('health_status', 'On Track'),
-            float(data['contract_value']),
-            float(data.get('amount_received', 0.0))
+            name,
+            client,
+            start_date,
+            end_date,
+            completion_pct,
+            data.get('health_status', 'On Track').strip(),
+            contract_val,
+            amount_rec
         ))
 
         proj_id = cursor.fetchone()['id']
 
         # Add a default milestone list for the new project
         default_milestones = [
-            (proj_id, "Site Excavation & Laying", data['start_date'], 0),
-            (proj_id, "Structure Frame Casting", data['start_date'], 0),
-            (proj_id, "Plastering & Masonry", data['end_date'], 0),
-            (proj_id, "MEP Installation", data['end_date'], 0),
-            (proj_id, "Finishing and Handover", data['end_date'], 0),
+            (proj_id, "Site Excavation & Laying", start_date, 0),
+            (proj_id, "Structure Frame Casting", start_date, 0),
+            (proj_id, "Plastering & Masonry", end_date, 0),
+            (proj_id, "MEP Installation", end_date, 0),
+            (proj_id, "Finishing and Handover", end_date, 0),
         ]
         for m in default_milestones:
             cursor.execute('''
@@ -86,7 +113,7 @@ def create_project():
         cursor.execute('''
             INSERT INTO notes (project_id, text, timestamp, author)
             VALUES (%s, %s, %s, %s)
-        ''', (proj_id, "Project initialized successfully.", datetime.utcnow().isoformat(), "System"))
+        ''', (proj_id, "Project initialized successfully.", datetime.utcnow().isoformat() + "Z", "System"))
 
         conn.commit()
         conn.close()
@@ -97,7 +124,9 @@ def create_project():
         conn.close()
         return jsonify({"error": str(e)}), 500
 
+
 @projects_bp.route('/api/projects/<int:proj_id>', methods=['GET'])
+@require_auth(['Admin', 'Site Manager', 'Client'])
 def get_project_detail(proj_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -126,18 +155,7 @@ def get_project_detail(proj_id):
     project['alerts_count'] = 1 if project['outstanding_balance'] > (0.3 * project['contract_value']) else 0
 
     # Resolve user role for dynamic logging details filter
-    role = None
-    auth_header = request.headers.get('Authorization')
-    if auth_header and auth_header.startswith('Bearer '):
-        token = auth_header.split(' ')[1]
-        if token.startswith('mock-token-'):
-            username = token.replace('mock-token-', '')
-            cursor.execute("SELECT role FROM users WHERE username = %s", (username,))
-            user_row = cursor.fetchone()
-            if user_row:
-                role = user_row['role']
-    if not role:
-        role = request.args.get('role', 'Client')
+    role = request.environ['current_user']['role']
 
     # Milestones
     cursor.execute("SELECT * FROM milestones WHERE project_id = %s ORDER BY due_date ASC, id ASC", (proj_id,))
@@ -174,6 +192,7 @@ def get_project_detail(proj_id):
     return jsonify(project)
 
 @projects_bp.route('/api/projects/<int:proj_id>', methods=['PUT'])
+@require_auth(['Admin', 'Site Manager'])
 def update_project(proj_id):
     data = request.json
     if not data:
@@ -182,17 +201,46 @@ def update_project(proj_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM projects WHERE id = %s", (proj_id,))
-    if not cursor.fetchone():
+    existing = cursor.fetchone()
+    if not existing:
         conn.close()
         return jsonify({"error": "Project not found"}), 404
 
+    # Perform updates validation
     fields = []
     params = []
     updatable = ['completion_percentage', 'health_status', 'name', 'client', 'start_date', 'end_date', 'contract_value']
+    
+    start_date = data.get('start_date', existing['start_date']).strip()
+    end_date = data.get('end_date', existing['end_date']).strip()
+
+    if end_date < start_date:
+        conn.close()
+        return jsonify({"error": "End date cannot be prior to start date"}), 400
+
     for k, v in data.items():
         if k in updatable:
-            fields.append(f"{k} = %s")
-            params.append(float(v) if k in ['completion_percentage', 'contract_value'] else v)
+            if k in ['completion_percentage', 'contract_value']:
+                try:
+                    val = float(v)
+                except (ValueError, TypeError):
+                    conn.close()
+                    return jsonify({"error": f"{k} must be numeric"}), 400
+                if k == 'completion_percentage' and (val < 0 or val > 100):
+                    conn.close()
+                    return jsonify({"error": "Completion percentage must be between 0 and 100"}), 400
+                if k == 'contract_value' and val <= 0:
+                    conn.close()
+                    return jsonify({"error": "Contract value must be greater than zero"}), 400
+                fields.append(f"{k} = %s")
+                params.append(val)
+            else:
+                val_str = str(v).strip()
+                if k in ['name', 'client', 'start_date', 'end_date'] and not val_str:
+                    conn.close()
+                    return jsonify({"error": f"{k} cannot be empty"}), 400
+                fields.append(f"{k} = %s")
+                params.append(val_str)
 
     if not fields:
         conn.close()
@@ -212,6 +260,7 @@ def update_project(proj_id):
         return jsonify({"error": str(e)}), 500
 
 @projects_bp.route('/api/projects/<int:proj_id>', methods=['DELETE'])
+@require_auth(['Admin'])
 def delete_project(proj_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -229,23 +278,37 @@ def delete_project(proj_id):
         conn.close()
         return jsonify({"error": str(e)}), 500
 
+
 @projects_bp.route('/api/projects/<int:proj_id>/milestones', methods=['POST'])
+@require_auth(['Admin', 'Site Manager'])
 def add_milestone(proj_id):
     data = request.json
     if not data or 'name' not in data or 'due_date' not in data:
         return jsonify({"error": "Fields 'name' and 'due_date' are required"}), 400
+
+    name = data['name'].strip()
+    due_date = data['due_date'].strip()
+
+    if not name or not due_date:
+        return jsonify({"error": "Milestone name and due date cannot be empty"}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute("SELECT id FROM projects WHERE id = %s", (proj_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({"error": "Project not found"}), 404
+
     try:
         cursor.execute('''
             INSERT INTO milestones (project_id, name, due_date, completed)
             VALUES (%s, %s, %s, 0)
-        ''', (proj_id, data['name'], data['due_date']))
+        ''', (proj_id, name, due_date))
         timestamp = datetime.utcnow().isoformat() + "Z"
         cursor.execute('''
             INSERT INTO notes (project_id, text, timestamp, author)
             VALUES (%s, %s, %s, %s)
-        ''', (proj_id, f"Added new milestone: {data['name']}. Due: {data['due_date']}.", timestamp, "System"))
+        ''', (proj_id, f"Added new milestone: {name}. Due: {due_date}.", timestamp, "System"))
         conn.commit()
         conn.close()
         return jsonify({"success": True}), 201
@@ -255,6 +318,7 @@ def add_milestone(proj_id):
         return jsonify({"error": str(e)}), 500
 
 @projects_bp.route('/api/projects/<int:proj_id>/milestones/<int:milestone_id>', methods=['DELETE'])
+@require_auth(['Admin', 'Site Manager'])
 def delete_milestone(proj_id, milestone_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -279,6 +343,7 @@ def delete_milestone(proj_id, milestone_id):
         return jsonify({"error": str(e)}), 500
 
 @projects_bp.route('/api/projects/<int:proj_id>/milestones/<int:milestone_id>/toggle', methods=['POST'])
+@require_auth(['Admin', 'Site Manager'])
 def toggle_milestone(proj_id, milestone_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -294,10 +359,17 @@ def toggle_milestone(proj_id, milestone_id):
     return jsonify({"success": True, "completed": new_status})
 
 @projects_bp.route('/api/projects/<int:proj_id>/notes', methods=['POST'])
+@require_auth(['Admin', 'Site Manager'])
 def add_note(proj_id):
     data = request.json
     if not data or 'text' not in data or 'author' not in data:
         return jsonify({"error": "Fields 'text' and 'author' are required"}), 400
+    
+    text = data['text'].strip()
+    author = data['author'].strip()
+    if not text or not author:
+        return jsonify({"error": "Note text and author cannot be empty"}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM projects WHERE id = %s", (proj_id,))
@@ -309,7 +381,7 @@ def add_note(proj_id):
         cursor.execute('''
             INSERT INTO notes (project_id, text, timestamp, author)
             VALUES (%s, %s, %s, %s)
-        ''', (proj_id, data['text'], timestamp, data['author']))
+        ''', (proj_id, text, timestamp, author))
         conn.commit()
         conn.close()
         return jsonify({"success": True, "timestamp": timestamp}), 201
@@ -319,10 +391,15 @@ def add_note(proj_id):
         return jsonify({"error": str(e)}), 500
 
 @projects_bp.route('/api/projects/<int:proj_id>/notes/<int:note_id>', methods=['DELETE'])
+@require_auth(['Admin', 'Site Manager'])
 def delete_note(proj_id, note_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        cursor.execute("SELECT id FROM notes WHERE id = %s AND project_id = %s", (note_id, proj_id))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({"error": "Note not found"}), 404
         cursor.execute("DELETE FROM notes WHERE id = %s AND project_id = %s", (note_id, proj_id))
         conn.commit()
         conn.close()
@@ -331,3 +408,4 @@ def delete_note(proj_id, note_id):
         conn.rollback()
         conn.close()
         return jsonify({"error": str(e)}), 500
+

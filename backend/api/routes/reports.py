@@ -1,9 +1,11 @@
 from flask import Blueprint, jsonify, request
 from api.db import get_db_connection
+from api.routes.auth import require_auth
 
 reports_bp = Blueprint('reports', __name__)
 
 @reports_bp.route('/api/reports', methods=['GET'])
+@require_auth(['Admin', 'Site Manager', 'Client'])
 def get_reports():
     project_id = request.args.get('project_id')
     conn = get_db_connection()
@@ -28,14 +30,30 @@ def get_reports():
     return jsonify([dict(r) for r in rows])
 
 @reports_bp.route('/api/reports', methods=['POST'])
+@require_auth(['Admin', 'Site Manager'])
 def create_report():
     data = request.json
     required = ['project_id', 'title', 'type', 'content', 'generated_by', 'date']
     for f in required:
         if not data or f not in data:
             return jsonify({"error": f"Field '{f}' is required"}), 400
+
+    title = data['title'].strip()
+    type_str = data['type'].strip()
+    content = data['content'].strip()
+    generated_by = data['generated_by'].strip()
+    date_str = data['date'].strip()
+
+    if not title or not type_str or not content or not generated_by or not date_str:
+        return jsonify({"error": "All fields are required and cannot be blank"}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute("SELECT id FROM projects WHERE id = %s", (data['project_id'],))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({"error": "Project not found"}), 404
+
     try:
         cursor.execute('''
             INSERT INTO reports (project_id, title, type, content, generated_by, date, status)
@@ -43,12 +61,12 @@ def create_report():
             RETURNING id
         ''', (
             data['project_id'],
-            data['title'],
-            data['type'],
-            data['content'],
-            data['generated_by'],
-            data['date'],
-            data.get('status', 'Published')
+            title,
+            type_str,
+            content,
+            generated_by,
+            date_str,
+            data.get('status', 'Published').strip()
         ))
         report_id = cursor.fetchone()['id']
         conn.commit()
@@ -60,10 +78,15 @@ def create_report():
         return jsonify({"error": str(e)}), 500
 
 @reports_bp.route('/api/reports/<int:report_id>', methods=['DELETE'])
+@require_auth(['Admin'])
 def delete_report(report_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        cursor.execute("SELECT id FROM reports WHERE id = %s", (report_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({"error": "Report not found"}), 404
         cursor.execute("DELETE FROM reports WHERE id = %s", (report_id,))
         conn.commit()
         conn.close()
@@ -72,3 +95,4 @@ def delete_report(report_id):
         conn.rollback()
         conn.close()
         return jsonify({"error": str(e)}), 500
+

@@ -18,7 +18,9 @@ import {
   Trash2,
   Plus,
   Briefcase,
-  Receipt
+  Receipt,
+  CheckCircle,
+  AlertOctagon
 } from 'lucide-react'
 import { Doughnut } from 'react-chartjs-2'
 import {
@@ -28,13 +30,14 @@ import {
   Legend as ChartLegend
 } from 'chart.js'
 import { formatINR } from './DashboardView'
+import ConfirmModal from './ConfirmModal'
 
 ChartJS.register(ArcElement, ChartTooltip, ChartLegend)
 
 // Recharts colors for Pie Chart
 const COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#64748b']
 
-export default function ProjectWorkspaceView({ projectId, role, projects, onChangeProject, onRefresh }) {
+export default function ProjectWorkspaceView({ projectId, role, projects, onChangeProject, onRefresh, showToast }) {
   const [activeTab, setActiveTab] = useState('timeline') // 'timeline', 'revenue', 'expense'
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -67,7 +70,16 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
   const [savingPayment, setSavingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState('')
 
+  // Deletion confirmation states
+  const [noteToDelete, setNoteToDelete] = useState(null)
+  const [deletingNote, setDeletingNote] = useState(false)
+  const [milestoneToDelete, setMilestoneToDelete] = useState(null)
+  const [deletingMilestone, setDeletingMilestone] = useState(false)
+  const [expenseToDelete, setExpenseToDelete] = useState(null)
+  const [deletingExpense, setDeletingExpense] = useState(false)
+
   // Fetch project details
+
   const fetchProjectDetails = async () => {
     if (!projectId) return
     try {
@@ -202,7 +214,11 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
   // Append a Note
   const handleAddNote = async (e) => {
     e.preventDefault()
-    if (!newNote.trim()) return
+    const trimmedNote = newNote.trim()
+    if (!trimmedNote) {
+      showToast('Note content cannot be empty', 'error')
+      return
+    }
     
     setSavingNote(true)
     try {
@@ -210,7 +226,7 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: newNote,
+          text: trimmedNote,
           author: role === 'Admin' ? 'Admin Manager' : 'Site Supervisor'
         })
       })
@@ -223,7 +239,7 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
             {
               id: Date.now(),
               project_id: project.id,
-              text: newNote,
+              text: trimmedNote,
               timestamp: data.timestamp,
               author: role === 'Admin' ? 'Admin Manager' : 'Site Supervisor'
             },
@@ -231,84 +247,136 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
           ]
         }))
         setNewNote('')
+        showToast('Note added successfully', 'success')
+      } else {
+        const errData = await res.json()
+        showToast(errData.error || 'Failed to add note', 'error')
       }
     } catch (e) {
-      console.error("Error adding note:", e)
+      showToast('Network error adding note', 'error')
     } finally {
       setSavingNote(false)
     }
   }
 
-  // Delete a Note
-  const handleDeleteNote = async (noteId) => {
+  // Delete Note Trigger & Confirm
+  const handleDeleteNoteClick = (noteId) => {
+    setNoteToDelete(noteId)
+  }
+
+  const handleDeleteNoteConfirm = async () => {
+    if (!noteToDelete) return
+    setDeletingNote(true)
     try {
-      const res = await fetch(`/api/projects/${project.id}/notes/${noteId}`, {
+      const res = await fetch(`/api/projects/${project.id}/notes/${noteToDelete}`, {
         method: 'DELETE'
       })
       if (res.ok) {
         setProject(prev => ({
           ...prev,
-          notes: prev.notes.filter(n => n.id !== noteId)
+          notes: prev.notes.filter(n => n.id !== noteToDelete)
         }))
+        showToast('Note deleted successfully', 'success')
+      } else {
+        const errData = await res.json()
+        showToast(errData.error || 'Failed to delete note', 'error')
       }
     } catch (err) {
-      console.error("Error deleting note:", err)
+      showToast('Network error deleting note', 'error')
+    } finally {
+      setDeletingNote(false)
+      setNoteToDelete(null)
     }
   }
 
   // Add a Milestone
   const handleAddMilestone = async (e) => {
     e.preventDefault()
-    if (!newMilestoneName.trim() || !newMilestoneDate) return
+    const name = newMilestoneName.trim()
+    const dueDate = newMilestoneDate.trim()
+    if (!name || !dueDate) {
+      showToast('Please fill in milestone name and date', 'error')
+      return
+    }
     setAddingMilestone(true)
     try {
       const res = await fetch(`/api/projects/${project.id}/milestones`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: newMilestoneName,
-          due_date: newMilestoneDate
+          name,
+          due_date: dueDate
         })
       })
       if (res.ok) {
         setNewMilestoneName('')
         setNewMilestoneDate('')
+        showToast('Milestone added successfully', 'success')
         fetchProjectDetails()
+      } else {
+        const errData = await res.json()
+        showToast(errData.error || 'Failed to add milestone', 'error')
       }
     } catch (err) {
-      console.error("Error adding milestone:", err)
+      showToast('Network error adding milestone', 'error')
     } finally {
       setAddingMilestone(false)
     }
   }
 
-  // Delete a Milestone
-  const handleDeleteMilestone = async (e, milestoneId) => {
+  // Delete Milestone Trigger & Confirm
+  const handleDeleteMilestoneClick = (e, milestoneId) => {
     e.stopPropagation()
+    setMilestoneToDelete(milestoneId)
+  }
+
+  const handleDeleteMilestoneConfirm = async () => {
+    if (!milestoneToDelete) return
+    setDeletingMilestone(true)
     try {
-      const res = await fetch(`/api/projects/${project.id}/milestones/${milestoneId}`, {
+      const res = await fetch(`/api/projects/${project.id}/milestones/${milestoneToDelete}`, {
         method: 'DELETE'
       })
       if (res.ok) {
+        showToast('Milestone deleted successfully', 'success')
         fetchProjectDetails()
+      } else {
+        const errData = await res.json()
+        showToast(errData.error || 'Failed to delete milestone', 'error')
       }
     } catch (err) {
-      console.error("Error deleting milestone:", err)
+      showToast('Network error deleting milestone', 'error')
+    } finally {
+      setDeletingMilestone(false)
+      setMilestoneToDelete(null)
     }
   }
 
-  // Delete an Expense
-  const handleDeleteExpense = async (expenseId) => {
+  // Delete Expense Trigger & Confirm
+  const handleDeleteExpenseClick = (expenseId) => {
+    setExpenseToDelete(expenseId)
+  }
+
+  const handleDeleteExpenseConfirm = async () => {
+    if (!expenseToDelete) return
+    setDeletingExpense(true)
     try {
-      const res = await fetch(`/api/projects/${project.id}/expenses/${expenseId}`, {
+      const res = await fetch(`/api/projects/${project.id}/expenses/${expenseToDelete}`, {
         method: 'DELETE'
       })
       if (res.ok) {
+        showToast('Expense record deleted', 'success')
         fetchProjectDetails()
         onRefresh()
+      } else {
+        const errData = await res.json()
+        showToast(errData.error || 'Failed to delete expense', 'error')
       }
     } catch (err) {
-      console.error("Error deleting expense:", err)
+      showToast('Network error deleting expense', 'error')
+    } finally {
+      setDeletingExpense(false)
+      setExpenseToDelete(null)
     }
   }
 
@@ -318,8 +386,18 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
   const handleAddPayment = async (e) => {
     e.preventDefault()
     setPaymentError('')
-    if (!paymentForm.amount || !paymentForm.reference_id) {
-      setPaymentError('All fields are required.')
+    const amountVal = parseFloat(paymentForm.amount)
+    const reference = paymentForm.reference_id.trim()
+    const dateVal = paymentForm.date.trim()
+
+    if (isNaN(amountVal) || amountVal <= 0) {
+      setPaymentError('Payment amount must be a positive number.')
+      showToast('Payment amount must be greater than zero.', 'error')
+      return
+    }
+    if (!reference) {
+      setPaymentError('Reference ID is required.')
+      showToast('Reference ID cannot be empty.', 'error')
       return
     }
 
@@ -329,10 +407,10 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: parseFloat(paymentForm.amount),
+          amount: amountVal,
           payment_mode: paymentForm.payment_mode,
-          reference_id: paymentForm.reference_id,
-          date: paymentForm.date
+          reference_id: reference,
+          date: dateVal
         })
       })
 
@@ -344,15 +422,18 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
           reference_id: '',
           date: new Date().toISOString().split('T')[0]
         })
+        showToast('Payment recorded successfully', 'success')
         // Reload project details to show updated balance
         fetchProjectDetails()
         onRefresh()
       } else {
         const data = await res.json()
         setPaymentError(data.error || 'Failed to submit payment.')
+        showToast(data.error || 'Failed to submit payment.', 'error')
       }
     } catch (err) {
       setPaymentError('Network failure.')
+      showToast('Network failure submitting payment.', 'error')
     } finally {
       setSavingPayment(false)
     }
@@ -364,8 +445,19 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
   const handleAddExpense = async (e) => {
     e.preventDefault()
     setExpenseError('')
-    if (!expenseForm.amount || !expenseForm.description.trim()) {
-      setExpenseError('Please fill in amount and description.')
+    
+    const amountVal = parseFloat(expenseForm.amount)
+    const descVal = expenseForm.description.trim()
+    const dateVal = expenseForm.date.trim()
+
+    if (isNaN(amountVal) || amountVal <= 0) {
+      setExpenseError('Expense amount must be a positive number.')
+      showToast('Expense amount must be greater than zero.', 'error')
+      return
+    }
+    if (!descVal) {
+      setExpenseError('Description cannot be empty.')
+      showToast('Description is required.', 'error')
       return
     }
 
@@ -376,9 +468,9 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category: expenseForm.category,
-          amount: parseFloat(expenseForm.amount),
-          date: expenseForm.date,
-          description: formDataShorten(expenseForm.description)
+          amount: amountVal,
+          date: dateVal,
+          description: descVal
         })
       })
 
@@ -389,14 +481,17 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
           date: new Date().toISOString().split('T')[0],
           description: ''
         })
+        showToast('Expense logged successfully', 'success')
         fetchProjectDetails()
         onRefresh()
       } else {
         const data = await res.json()
         setExpenseError(data.error || 'Failed to log expense.')
+        showToast(data.error || 'Failed to log expense.', 'error')
       }
     } catch (err) {
       setExpenseError('Network failure.')
+      showToast('Network failure logging expense.', 'error')
     } finally {
       setSavingExpense(false)
     }
@@ -458,14 +553,33 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
     cutout: '70%'
   }
 
-  // Helper styles for badges
-  const getHealthStyle = (status) => {
+  // Helper to render health status badge with Lucide icon in Workspace view
+  const renderHealthBadgeWorkspace = (status) => {
+    let classes = ''
+    let Icon = null
     switch (status) {
-      case 'On Track': return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-      case 'At Risk': return 'bg-amber-50 text-amber-700 border border-amber-200'
-      case 'Delayed': return 'bg-rose-50 text-rose-700 border border-rose-200'
-      default: return 'bg-slate-100 text-slate-700'
+      case 'On Track':
+        classes = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+        Icon = CheckCircle
+        break
+      case 'At Risk':
+        classes = 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+        Icon = AlertTriangle
+        break
+      case 'Delayed':
+        classes = 'bg-rose-500/10 text-rose-455 border border-rose-500/20'
+        Icon = AlertOctagon
+        break
+      default:
+        classes = 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+        Icon = AlertTriangle
     }
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase rounded-full cursor-pointer transition-all hover:opacity-85 ${classes} flex-shrink-0`}>
+        {Icon && <Icon className="w-3.5 h-3.5 flex-shrink-0" />}
+        <span>{status}</span>
+      </span>
+    )
   }
 
   return (
@@ -512,9 +626,7 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
             
             {/* Quick health badge selector */}
             <div className="relative group inline-block">
-              <span className={`px-3 py-1 text-xs font-bold uppercase rounded-full cursor-pointer transition-all hover:opacity-85 ${getHealthStyle(project.health_status)}`}>
-                {project.health_status}
-              </span>
+              {renderHealthBadgeWorkspace(project.health_status)}
               {/* Role restriction tooltips */}
               <div className="absolute right-0 top-7 hidden group-hover:flex flex-col bg-slate-900 border border-slate-850 p-1.5 rounded-lg shadow-xl text-[10px] text-slate-300 font-semibold space-y-1 z-35 min-w-[100px] text-center">
                 <span className="text-slate-500 border-b border-slate-800 pb-0.5 mb-0.5">Change Health</span>
@@ -537,10 +649,10 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
       </div>
 
       {/* ── Sub Navigation Tabs ── */}
-      <div className="flex border-b border-slate-800/60 gap-2">
+      <div className="flex border-b border-slate-800/60 gap-2 overflow-x-auto whitespace-nowrap scrollbar-none">
         <button
           onClick={() => setActiveTab('timeline')}
-          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex-shrink-0 ${
             activeTab === 'timeline'
               ? 'border-orange-600 text-white'
               : 'border-transparent text-slate-400 hover:text-white'
@@ -553,7 +665,7 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
         {(role === 'Admin' || role === 'Client') && (
           <button
             onClick={() => setActiveTab('revenue')}
-            className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+            className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex-shrink-0 ${
               activeTab === 'revenue'
                 ? 'border-orange-600 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'
@@ -565,7 +677,7 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
         {role === 'Admin' && (
           <button
             onClick={() => setActiveTab('expense')}
-            className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+            className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex-shrink-0 ${
               activeTab === 'expense'
                 ? 'border-orange-600 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'
@@ -637,8 +749,8 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
                     {/* Delete milestone button */}
                     {role !== 'Client' && (
                       <button
-                        onClick={(e) => handleDeleteMilestone(e, m.id)}
-                        className="p-1 rounded text-slate-600 hover:text-red-500 hover:bg-slate-900 opacity-0 group-hover/m:opacity-100 transition-opacity"
+                        onClick={(e) => handleDeleteMilestoneClick(e, m.id)}
+                        className="p-1 rounded text-slate-600 hover:text-red-500 hover:bg-slate-900 opacity-0 group-hover/m:opacity-100 transition-opacity cursor-pointer"
                         title="Delete Milestone"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -774,8 +886,8 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
                           {/* Trash button to delete note */}
                           {role === 'Admin' && (
                             <button
-                              onClick={() => handleDeleteNote(note.id)}
-                              className="p-0.5 rounded text-slate-600 hover:text-rose-500 hover:bg-slate-900 opacity-0 group-hover/n:opacity-100 transition-opacity"
+                              onClick={() => handleDeleteNoteClick(note.id)}
+                              className="p-0.5 rounded text-slate-600 hover:text-rose-500 hover:bg-slate-900 opacity-0 group-hover/n:opacity-100 transition-opacity cursor-pointer"
                               title="Delete Note"
                             >
                               <Trash2 className="w-3 w-3" />
@@ -949,23 +1061,23 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="bg-slate-900 border-b border-slate-850 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="px-5 py-3.5">Invoice Date</th>
-                    <th className="px-5 py-3.5">Reference ID</th>
-                    <th className="px-5 py-3.5">Payment Mode</th>
-                    <th className="px-5 py-3.5 text-right">Amount Received</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Invoice Date</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Reference ID</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Payment Mode</th>
+                    <th className="px-5 py-3.5 text-right whitespace-nowrap">Amount Received</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-850/40">
                   {project.payments.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="px-5 py-8 text-center text-slate-500 font-medium">No payments received log recorded.</td>
+                      <td colSpan="4" className="px-5 py-8 text-center text-slate-500 font-medium whitespace-nowrap">No payments received log recorded.</td>
                     </tr>
                   ) : (
                     project.payments.map((p) => (
                       <tr key={p.id} className="hover:bg-slate-900/20 text-slate-300 font-medium">
-                        <td className="px-5 py-4 font-mono">{p.date}</td>
-                        <td className="px-5 py-4 font-semibold text-slate-400">{p.reference_id}</td>
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-4 font-mono whitespace-nowrap">{p.date}</td>
+                        <td className="px-5 py-4 font-semibold text-slate-400 whitespace-nowrap">{p.reference_id}</td>
+                        <td className="px-5 py-4 whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                             p.payment_mode === 'Online' ? 'bg-blue-950/40 text-blue-400 border border-blue-900/40' :
                             p.payment_mode === 'Cheque' ? 'bg-amber-950/40 text-amber-500 border border-amber-900/40' :
@@ -974,7 +1086,7 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
                             {p.payment_mode}
                           </span>
                         </td>
-                        <td className="px-5 py-4 text-right text-emerald-400 font-extrabold">{formatINR(p.amount)}</td>
+                        <td className="px-5 py-4 text-right text-emerald-400 font-extrabold whitespace-nowrap">{formatINR(p.amount)}</td>
                       </tr>
                     ))
                   )}
@@ -1137,33 +1249,33 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="bg-slate-900 border-b border-slate-850 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
-                      <th className="px-4 py-2.5">Date</th>
-                      <th className="px-4 py-2.5">Category</th>
-                      <th className="px-4 py-2.5">Description</th>
-                      <th className="px-4 py-2.5 text-right">Amount</th>
-                      <th className="px-4 py-2.5 text-right">Actions</th>
+                      <th className="px-4 py-2.5 whitespace-nowrap">Date</th>
+                      <th className="px-4 py-2.5 whitespace-nowrap">Category</th>
+                      <th className="px-4 py-2.5 whitespace-nowrap">Description</th>
+                      <th className="px-4 py-2.5 text-right whitespace-nowrap">Amount</th>
+                      <th className="px-4 py-2.5 text-right whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-850/40">
                     {project.expenses.length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="px-4 py-6 text-center text-slate-500 font-medium">No expenses logged yet.</td>
+                        <td colSpan="5" className="px-4 py-6 text-center text-slate-500 font-medium whitespace-nowrap">No expenses logged yet.</td>
                       </tr>
                     ) : (
                       project.expenses.map((e) => (
                         <tr key={e.id} className="hover:bg-slate-900/20 text-slate-300 font-medium">
-                          <td className="px-4 py-3 font-mono">{e.date}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 font-mono whitespace-nowrap">{e.date}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-900 border border-slate-800">
                               {e.category}
                             </span>
                           </td>
-                          <td className="px-4 py-3 truncate max-w-[150px] text-slate-400" title={e.description}>{e.description}</td>
-                          <td className="px-4 py-3 text-right font-extrabold text-orange-500">{formatINR(e.amount)}</td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 truncate max-w-[150px] text-slate-400 whitespace-nowrap" title={e.description}>{e.description}</td>
+                          <td className="px-4 py-3 text-right font-extrabold text-orange-500 whitespace-nowrap">{formatINR(e.amount)}</td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
                             <button
-                              onClick={() => handleDeleteExpense(e.id)}
-                              className="p-1 rounded text-slate-500 hover:text-red-500 hover:bg-slate-900 transition-colors"
+                              onClick={() => handleDeleteExpenseClick(e.id)}
+                              className="p-1 rounded text-slate-500 hover:text-red-500 hover:bg-slate-900 transition-colors cursor-pointer"
                               title="Delete Expense"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1182,6 +1294,34 @@ export default function ProjectWorkspaceView({ projectId, role, projects, onChan
         </div>
       )}
 
+      {/* Confirmation Modals */}
+      <ConfirmModal
+        isOpen={noteToDelete !== null}
+        onClose={() => setNoteToDelete(null)}
+        onConfirm={handleDeleteNoteConfirm}
+        title="Delete Progress Note"
+        message="Are you sure you want to delete this progress note? This will permanently remove it from the project timeline feed."
+        confirmText={deletingNote ? "Deleting..." : "Delete Note"}
+      />
+
+      <ConfirmModal
+        isOpen={milestoneToDelete !== null}
+        onClose={() => setMilestoneToDelete(null)}
+        onConfirm={handleDeleteMilestoneConfirm}
+        title="Delete Project Milestone"
+        message="Are you sure you want to delete this project milestone? This will remove the task entry and its completion history."
+        confirmText={deletingMilestone ? "Deleting..." : "Delete Milestone"}
+      />
+
+      <ConfirmModal
+        isOpen={expenseToDelete !== null}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={handleDeleteExpenseConfirm}
+        title="Delete Expense Record"
+        message="Are you sure you want to delete this logged site expense? This will restore the corresponding amount to the project cost calculations."
+        confirmText={deletingExpense ? "Deleting..." : "Delete Expense"}
+      />
     </div>
   )
 }
+

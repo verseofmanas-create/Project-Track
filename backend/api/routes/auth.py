@@ -7,6 +7,39 @@ auth_bp = Blueprint('auth', __name__)
 def hash_pw(password):
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
+from functools import wraps
+
+def require_auth(allowed_roles=None):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith('Bearer '):
+                return jsonify({"error": "Missing or invalid authorization token"}), 401
+            
+            token = auth_header.split(' ')[1]
+            if not token.startswith('mock-token-'):
+                return jsonify({"error": "Invalid authorization token"}), 401
+            
+            username = token.replace('mock-token-', '')
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, username, full_name, role, location FROM users WHERE username = %s", (username,))
+            user = cursor.fetchone()
+            conn.close()
+            
+            if not user:
+                return jsonify({"error": "Unauthorized"}), 401
+            
+            if allowed_roles and user['role'] not in allowed_roles:
+                return jsonify({"error": f"Forbidden: Access restricted to {allowed_roles}"}), 403
+            
+            request.environ['current_user'] = user
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
 @auth_bp.route('/api/auth/login', methods=['POST'])
 def auth_login():
     data = request.json

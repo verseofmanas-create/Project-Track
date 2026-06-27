@@ -28,8 +28,15 @@ app.register_blueprint(reports_bp)
 app.register_blueprint(issues_bp)
 app.register_blueprint(users_bp)
 
-# Initialize Database Schema & Seed Data
-init_db()
+# Expose an endpoint to initialize/seed the DB instead of blocking module load
+from flask import jsonify
+@app.route('/api/setup', methods=['POST'])
+def setup_db():
+    try:
+        init_db()
+        return jsonify({"success": True, "message": "Database initialized and seeded."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/health')
 def health():

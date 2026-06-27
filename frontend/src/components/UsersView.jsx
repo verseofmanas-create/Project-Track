@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, Shield, User, MapPin, Trash2, ShieldAlert } from 'lucide-react';
+import { Users, UserPlus, Shield, User, MapPin, Trash2, ShieldAlert, AlertTriangle } from 'lucide-react';
+import ConfirmModal from './ConfirmModal';
 
-export default function UsersView({ role }) {
+export default function UsersView({ role, showToast }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
+  // Custom dialog state
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [deletingUser, setDeletingUser] = useState(false);
+  const [submittingUser, setSubmittingUser] = useState(false);
+
   // Form state
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState({
@@ -28,45 +34,84 @@ export default function UsersView({ role }) {
       setUsers(data);
     } catch (err) {
       setError(err.message);
+      showToast(err.message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (userId, username) => {
-    if (!confirm(`Are you sure you want to delete the user '${username}'?`)) return;
-    
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return;
+    setDeletingUser(true);
     try {
-      const res = await fetch(`/api/users/${userId}`, {
+      const res = await fetch(`/api/users/${userToDelete.id}`, {
         method: 'DELETE'
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to delete user');
       
-      setUsers(users.filter(u => u.id !== userId));
+      setUsers(users.filter(u => u.id !== userToDelete.id));
+      showToast(`User '${userToDelete.username}' deleted successfully`, 'success');
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
+    } finally {
+      setDeletingUser(false);
+      setUserToDelete(null);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Client-side validations
+    const username = formData.username.trim().toLowerCase();
+    const fullName = formData.full_name.trim();
+    const password = formData.password;
+    const location = formData.location.trim();
+
+    if (!username) {
+      showToast('Username cannot be empty', 'error');
+      return;
+    }
+    if (username.includes(' ')) {
+      showToast('Username cannot contain spaces', 'error');
+      return;
+    }
+    if (password.length < 6) {
+      showToast('Password must be at least 6 characters long', 'error');
+      return;
+    }
+    if (!fullName) {
+      showToast('Full Name cannot be empty', 'error');
+      return;
+    }
+
+    setSubmittingUser(true);
     try {
       const res = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          username,
+          password,
+          full_name: fullName,
+          role: formData.role,
+          location
+        })
       });
       const data = await res.json();
       
       if (!res.ok) throw new Error(data.error || 'Failed to create user');
       
+      showToast(`User '${username}' created successfully`, 'success');
       // Reset form and refresh
       setFormData({ username: '', password: '', full_name: '', role: 'Site Manager', location: '' });
       setIsAdding(false);
       fetchUsers();
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
+    } finally {
+      setSubmittingUser(false);
     }
   };
 
@@ -80,6 +125,7 @@ export default function UsersView({ role }) {
     );
   }
 
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -92,7 +138,7 @@ export default function UsersView({ role }) {
         </div>
         <button
           onClick={() => setIsAdding(!isAdding)}
-          className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors font-medium"
+          className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors font-medium cursor-pointer"
         >
           {isAdding ? 'Cancel' : <><UserPlus className="w-4 h-4" /> Add User</>}
         </button>
@@ -163,9 +209,17 @@ export default function UsersView({ role }) {
             <div className="md:col-span-2 flex justify-end mt-2">
               <button
                 type="submit"
-                className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors"
+                disabled={submittingUser}
+                className="px-6 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-2"
               >
-                Create Account
+                {submittingUser ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Creating Account...
+                  </>
+                ) : (
+                  'Create Account'
+                )}
               </button>
             </div>
           </form>
@@ -176,77 +230,88 @@ export default function UsersView({ role }) {
         <div className="flex justify-center p-12">
           <div className="w-8 h-8 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div>
         </div>
+      ) : users.length === 0 ? (
+        <div className="glass-panel py-16 px-4 rounded-xl text-center border-slate-800/80 max-w-md mx-auto space-y-3">
+          <Users className="w-12 h-12 text-slate-600 mx-auto" />
+          <h4 className="text-lg font-bold text-slate-350">No Users Found</h4>
+          <p className="text-sm text-slate-500">There are no registered users on the platform. Add a user above to get started.</p>
+        </div>
       ) : (
         <div className="glass-panel border-slate-800/80 rounded-xl overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-900/50 border-b border-slate-800 text-slate-400">
-              <tr>
-                <th className="p-4 font-medium">User</th>
-                <th className="p-4 font-medium">Role</th>
-                <th className="p-4 font-medium">Location</th>
-                <th className="p-4 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {users.map(u => (
-                <tr key={u.id} className="hover:bg-slate-800/20 transition-colors">
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300">
-                        {u.role === 'Admin' ? <Shield className="w-5 h-5 text-emerald-400" /> : <User className="w-5 h-5" />}
-                      </div>
-                      <div>
-                        <div className="font-medium text-white">{u.full_name}</div>
-                        <div className="text-slate-500 text-xs">@{u.username}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                      u.role === 'Admin' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-                      u.role === 'Client' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                      'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                    }`}>
-                      {u.role}
-                    </span>
-                  </td>
-                  <td className="p-4 text-slate-400">
-                    {u.location ? (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5" />
-                        {u.location}
-                      </div>
-                    ) : (
-                      <span className="text-slate-600">-</span>
-                    )}
-                  </td>
-                  <td className="p-4 text-right">
-                    <button
-                      onClick={() => handleDelete(u.id, u.username)}
-                      disabled={u.username === 'admin'}
-                      className={`p-2 rounded-lg transition-colors ${
-                        u.username === 'admin' 
-                          ? 'text-slate-600 cursor-not-allowed' 
-                          : 'text-slate-400 hover:text-red-400 hover:bg-red-400/10'
-                      }`}
-                      title={u.username === 'admin' ? "Cannot delete default admin" : "Delete user"}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {users.length === 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-900/50 border-b border-slate-800 text-slate-400">
                 <tr>
-                  <td colSpan="4" className="p-8 text-center text-slate-500">
-                    No users found
-                  </td>
+                  <th className="p-4 font-medium whitespace-nowrap">User</th>
+                  <th className="p-4 font-medium whitespace-nowrap">Role</th>
+                  <th className="p-4 font-medium whitespace-nowrap">Location</th>
+                  <th className="p-4 font-medium text-right whitespace-nowrap">Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-880/50">
+                {users.map(u => (
+                  <tr key={u.id} className="hover:bg-slate-800/20 transition-colors">
+                    <td className="p-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 flex-shrink-0">
+                          {u.role === 'Admin' ? <Shield className="w-5 h-5 text-emerald-400" /> : <User className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <div className="font-medium text-white">{u.full_name}</div>
+                          <div className="text-slate-500 text-xs">@{u.username}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4 whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        u.role === 'Admin' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                        u.role === 'Client' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                        'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      }`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="p-4 text-slate-400 whitespace-nowrap">
+                      {u.location ? (
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                          {u.location}
+                        </div>
+                      ) : (
+                        <span className="text-slate-600">-</span>
+                      )}
+                    </td>
+                    <td className="p-4 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => setUserToDelete(u)}
+                        disabled={u.username === 'admin'}
+                        className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                          u.username === 'admin' 
+                            ? 'text-slate-600 cursor-not-allowed' 
+                            : 'text-slate-400 hover:text-red-400 hover:bg-red-400/10'
+                        }`}
+                        title={u.username === 'admin' ? "Cannot delete default admin" : "Delete user"}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
+      {/* Custom Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!userToDelete}
+        onClose={() => setUserToDelete(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete User Account"
+        message={`Are you sure you want to delete user account for '${userToDelete?.full_name}' (@${userToDelete?.username})? All permissions associated with this account will be revoked.`}
+        confirmText={deletingUser ? 'Deleting...' : 'Delete User'}
+      />
     </div>
   );
 }

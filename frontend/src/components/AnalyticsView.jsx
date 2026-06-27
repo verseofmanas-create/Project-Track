@@ -41,7 +41,7 @@ ChartJS.register(
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#a855f7']
 
-export default function AnalyticsView({ onRefresh }) {
+export default function AnalyticsView({ onRefresh, showToast }) {
   const [pnlData, setPnlData] = useState([])
   const [revenueData, setRevenueData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -298,7 +298,7 @@ export default function AnalyticsView({ onRefresh }) {
       }, 200)
     } catch (err) {
       console.error('Financial PDF Export Error:', err)
-      alert('Financial PDF Export Failed: ' + err.message)
+      showToast('Financial PDF Export Failed: ' + err.message, 'error')
     }
   }
 
@@ -543,13 +543,13 @@ export default function AnalyticsView({ onRefresh }) {
           <h2 className="text-2xl font-display font-bold text-white">Financial Analytics</h2>
           <p className="text-sm text-slate-400">P&L matrix tables and macro revenue aggregations.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           
           {/* Mock PDF compilation trigger */}
           <button
             onClick={handleExportPDF}
             disabled={pdfSuccess}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all focus-ring shadow-lg ${
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all focus-ring shadow-lg ${
               pdfSuccess 
                 ? 'bg-emerald-600/10 border border-emerald-500/20 text-emerald-400' 
                 : 'bg-orange-600 hover:bg-orange-500 text-white shadow-orange-600/10'
@@ -572,7 +572,7 @@ export default function AnalyticsView({ onRefresh }) {
           <button
             onClick={handleExportCSV}
             disabled={exportingCSV}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-colors focus-ring"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-colors focus-ring"
           >
             <FileSpreadsheet className="w-4 h-4" />
             {exportingCSV ? 'Exporting...' : 'Export P&L CSV'}
@@ -672,7 +672,7 @@ export default function AnalyticsView({ onRefresh }) {
       {/* ── System Profit & Loss Engine Table ── */}
       <div className="glass-panel rounded-xl border-slate-800/80 overflow-hidden">
         
-        <div className="px-5 py-4 border-b border-slate-800 bg-slate-900/30 flex justify-between items-center">
+        <div className="px-5 py-4 border-b border-slate-800 bg-slate-900/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">
             Profit & Loss Engine Matrix
           </h3>
@@ -685,12 +685,12 @@ export default function AnalyticsView({ onRefresh }) {
           <table className="w-full text-xs text-left">
             <thead>
               <tr className="bg-slate-900 border-b border-slate-850 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
-                <th className="px-5 py-3.5">Project Name</th>
-                <th className="px-5 py-3.5 text-right">Contract Value</th>
-                <th className="px-5 py-3.5 text-right">Collected Revenue</th>
-                <th className="px-5 py-3.5 text-right">Logged Expenses</th>
-                <th className="px-5 py-3.5 text-right">Net Profit/Loss</th>
-                <th className="px-5 py-3.5 text-right">Margin (%)</th>
+                <th className="px-5 py-3.5 whitespace-nowrap">Project Name</th>
+                <th className="px-5 py-3.5 text-right whitespace-nowrap">Contract Value</th>
+                <th className="px-5 py-3.5 text-right whitespace-nowrap">Collected Revenue</th>
+                <th className="px-5 py-3.5 text-right whitespace-nowrap">Logged Expenses</th>
+                <th className="px-5 py-3.5 text-right whitespace-nowrap">Net Profit/Loss</th>
+                <th className="px-5 py-3.5 text-right whitespace-nowrap">Margin (%)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850/40">
@@ -698,17 +698,17 @@ export default function AnalyticsView({ onRefresh }) {
                 const isLoss = p.net_profit < 0
                 return (
                   <tr key={p.id} className="hover:bg-slate-900/20 text-slate-300 font-medium">
-                    <td className="px-5 py-4 min-w-[200px]">
+                    <td className="px-5 py-4 min-w-[200px] whitespace-nowrap">
                       <span className="font-bold text-slate-200 block truncate">{p.name}</span>
                       <span className="text-[10px] text-slate-500 font-semibold">{p.client}</span>
                     </td>
-                    <td className="px-5 py-4 text-right font-semibold font-mono">{formatINR(p.contract_value)}</td>
-                    <td className="px-5 py-4 text-right font-semibold text-emerald-400/95 font-mono">{formatINR(p.amount_received)}</td>
-                    <td className="px-5 py-4 text-right font-semibold text-orange-500/95 font-mono">{formatINR(p.total_expenses)}</td>
-                    <td className={`px-5 py-4 text-right font-extrabold font-mono ${isLoss ? 'text-rose-500 bg-rose-500/5' : 'text-emerald-400'}`}>
+                    <td className="px-5 py-4 text-right font-semibold font-mono whitespace-nowrap">{formatINR(p.contract_value)}</td>
+                    <td className="px-5 py-4 text-right font-semibold text-emerald-400/95 font-mono whitespace-nowrap">{formatINR(p.amount_received)}</td>
+                    <td className="px-5 py-4 text-right font-semibold text-orange-500/95 font-mono whitespace-nowrap">{formatINR(p.total_expenses)}</td>
+                    <td className={`px-5 py-4 text-right font-extrabold font-mono whitespace-nowrap ${isLoss ? 'text-rose-500 bg-rose-500/5' : 'text-emerald-400'}`}>
                       {formatINR(p.net_profit)}
                     </td>
-                    <td className={`px-5 py-4 text-right font-extrabold font-mono ${isLoss ? 'text-rose-500 bg-rose-500/5' : 'text-emerald-400'}`}>
+                    <td className={`px-5 py-4 text-right font-extrabold font-mono whitespace-nowrap ${isLoss ? 'text-rose-500 bg-rose-500/5' : 'text-emerald-400'}`}>
                       {p.profit_margin.toFixed(1)}%
                     </td>
                   </tr>
